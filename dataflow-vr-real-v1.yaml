@@ -1,0 +1,144 @@
+# Copyright 2026 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# =============================================================================
+# OpenArm V1 VR Teleoperation - REAL ROBOT
+# =============================================================================
+#
+# This dataflow runs on the Ireland robot machine and receives VR data via
+# Tailscale from the Kenya PC (which runs udp_relay.py).
+#
+# Architecture:
+#   Quest VR (Kenya) -> UDP Relay (Kenya PC) -> Tailscale -> This Dataflow (Ireland)
+#                                                              |
+#                                                              v
+#                                                         Real Robot Arms
+#                                                         (can0 / can1)
+#
+# Prerequisites on Ireland machine:
+#   1. Tailscale connected (IP: 100.123.116.112)
+#   2. CAN interfaces configured (can0, can1)
+#   3. OpenArm driver installed
+#
+# On Kenya PC, run:
+#   python udp_relay.py --remote-host 100.123.116.112 --remote-port 5006
+#
+# Then run this dataflow on Ireland:
+#   dora run dataflow-vr-real-v1.yaml --uv
+#
+# =============================================================================
+
+nodes:
+  - id: ui
+    build: pip install -e nodes/dora-openarm-data-collection-ui
+    path: dora-openarm-data-collection-ui
+    env:
+      METADATA_FILE: "metadata_real_v1.yaml"
+    inputs:
+      tick: dora/timer/secs/1
+      button_a:
+        source: udp-receiver/button_a
+        queue_size: 100
+      button_b:
+        source: udp-receiver/button_b
+        queue_size: 100
+    outputs:
+      - command
+
+  - id: quittable-tick-leader
+    build: pip install -e nodes/dora-openarm-quitter
+    path: dora-openarm-quitter
+    inputs:
+      command: ui/command
+      tick: dora/timer/millis/2
+    outputs:
+      - tick
+
+  - id: udp-receiver
+    build: pip install -e nodes/dora-openarm-vr
+    path: dora-openarm-quest-receiver
+    # Use --robot-version v1 for correct workspace mapping (shoulders at 0.698m)
+    # Listens on 0.0.0.0:5006 for VR data forwarded via Tailscale
+    args: "--host 0.0.0.0 --port 5006 --robot-version v1"
+    inputs:
+      tick: quittable-tick-leader/tick
+    outputs:
+      - pose_right
+      - trigger_right
+      - pose_left
+      - trigger_left
+      - joystick_y
+      - button_a
+      - button_b
+      - status
+
+  - id: ik
+    build: pip install -e nodes/dora-openarm-kinematics
+    path: dora-openarm-ik
+    # V1 requires specifying the XML, EE frame names, and gripper type (slide joint)
+    # Uses openarm-mujoco package XML path (pip install openarm-mujoco)
+    # The XML has V1 joint limits (J2: ±100°) - different from V2!
+    args: "--mode bimanual --xml-package openarm_mujoco.v1 --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.1 --damping 0.1 --posture-cost 0.01 --lm-damping 0.01"
+    inputs:
+      tick: quittable-tick-leader/tick
+      target_right: udp-receiver/pose_right
+      target_left: udp-receiver/pose_left
+      trigger_right: udp-receiver/trigger_right
+      trigger_left: udp-receiver/trigger_left
+    outputs:
+      - position_left
+      - position_right
+      - status
+
+  # ── Real Robot Arms (Follower) ──
+  # These connect to the physical OpenArm v1 via CAN bus
+  # Right arm on can0, Left arm on can1
+  
+  - id: follower-right
+    build: pip install -e nodes/dora-openarm
+    path: dora-openarm
+    # Config file specifies CAN interface (can0) and motor IDs
+    args: "--side right --config config/openarm_v1_right.yaml --align-trigger gripper"
+    inputs:
+      request_state: ik/position_right
+      move_position: ik/position_right
+    outputs:
+      - state
+      - status
+
+  - id: follower-left
+    build: pip install -e nodes/dora-openarm
+    path: dora-openarm
+    # Config file specifies CAN interface (can1) and motor IDs
+    args: "--side left --config config/openarm_v1_left.yaml --align-trigger gripper"
+    inputs:
+      request_state: ik/position_left
+      move_position: ik/position_left
+    outputs:
+      - state
+      - status
+
+  # ── Data Recorder ──
+  - id: recorder
+    build: pip install -e nodes/dora-openarm-dataset-recorder
+    path: dora-openarm-dataset-recorder
+    env:
+      METADATA_FILE: "metadata_real_v1.yaml"
+      DIRECTORY: "vr_real_v1_data"
+    inputs:
+      command: ui/command
+      arm_right_action: ik/position_right
+      arm_right_observation: follower-right/state
+      arm_left_action: ik/position_left
+      arm_left_observation: follower-left/state

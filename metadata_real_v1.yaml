@@ -1,0 +1,20 @@
+# Metadata for OpenArm V1 Real Robot VR Teleoperation
+# This file is used by the data collection UI and recorder
+
+location: Ireland Lab
+operator: Remote Operator (Kenya)
+
+tasks:
+  - prompt: VR Teleoperation Task
+    description: Remote VR teleoperation of OpenArm v1 via Tailscale
+
+equipment:
+  id: OpenArm-Ireland
+  version: "1.0"
+  embodiments:
+    arms:
+      id: OpenArm
+      version: "1.0"
+      # V1 has no wrist cameras
+  perceptions:
+    cameras: {}

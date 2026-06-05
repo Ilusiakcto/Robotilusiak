@@ -1,0 +1,120 @@
+# Copyright 2026 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OpenArm v1 VR Teleoperation with MuJoCo Simulation
+# ===================================================
+# This dataflow is adapted for OpenArm v1, which differs from v2:
+# - No wrist cameras (v1 gripper doesn't have in-hand cameras)
+# - No keyframes defined in v1 MJCF
+# - Uses openarm_bimanual.xml directly
+#
+# VR Setup:
+# 1. Install Meta Quest Developer Hub and sideload the teleoperation APK
+# 2. Launch the app on Quest and enter your PC's IP and port (default: 5006)
+# 3. Verify: nc -lu 5006 (should see incoming data)
+#
+# Usage:
+#   dora build dataflow-vr-mujoco-v1.yaml --uv
+#   dora run dataflow-vr-mujoco-v1.yaml --uv
+
+nodes:
+  - id: ui
+    build: pip install -e nodes/dora-openarm-data-collection-ui
+    path: dora-openarm-data-collection-ui
+    env:
+      METADATA_FILE: "metadata_mujoco_v1.yaml"
+    inputs:
+      tick: dora/timer/secs/1
+      button_a:
+        source: udp-receiver/button_a
+        queue_size: 100
+      button_b:
+        source: udp-receiver/button_b
+        queue_size: 100
+    outputs:
+      - command
+
+  - id: quittable-tick-leader
+    build: pip install -e nodes/dora-openarm-quitter
+    path: dora-openarm-quitter
+    inputs:
+      command: ui/command
+      tick: dora/timer/millis/2
+    outputs:
+      - tick
+
+  - id: udp-receiver
+    build: pip install -e nodes/dora-openarm-vr
+    path: dora-openarm-quest-receiver
+    # Use --robot-version v1 for correct workspace mapping (shoulders at 0.698m)
+    args: "--host 0.0.0.0 --port 5006 --robot-version v1"
+    inputs:
+      tick: quittable-tick-leader/tick
+    outputs:
+      - pose_right
+      - trigger_right
+      - pose_left
+      - trigger_left
+      - joystick_y
+      - button_a
+      - button_b
+      - status
+
+  - id: ik
+    build: pip install -e nodes/dora-openarm-kinematics
+    path: dora-openarm-ik
+    # v1 requires specifying the XML, EE frame names, and gripper type (slide joint)
+    args: "--mode bimanual --xml C:/Users/rhoda/Documents/GitHub/CascadeProjects/2048/openarm_mujoco/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.1 --damping 0.1 --posture-cost 0.01 --lm-damping 0.01"
+    inputs:
+      tick: quittable-tick-leader/tick
+      target_right: udp-receiver/pose_right
+      target_left: udp-receiver/pose_left
+      trigger_right: udp-receiver/trigger_right
+      trigger_left: udp-receiver/trigger_left
+    outputs:
+      - position_left
+      - position_right
+      - status
+
+  # ── MuJoCo viewer for OpenArm v1 (no wrist cameras) ──
+  # --apply-offsets: shows what motors actually receive (sim-to-real debug mode)
+  - id: mujoco-v1
+    build: pip install -e nodes/dora-openarm-mujoco
+    path: dora-openarm-mujoco-v1
+    args: "--viewer --config config/openarm_sim.yaml --apply-offsets"
+    env:
+      DISPLAY: ":1"
+    inputs:
+      position_left: ik/position_left
+      position_right: ik/position_right
+      pose_right: udp-receiver/pose_right
+      pose_left: udp-receiver/pose_left
+      joystick_y: udp-receiver/joystick_y
+    outputs:
+      - status
+      - arm_right_observation
+      - arm_left_observation
+
+  - id: recorder
+    build: pip install -e nodes/dora-openarm-dataset-recorder
+    path: dora-openarm-dataset-recorder
+    env:
+      METADATA_FILE: "metadata_mujoco_v1.yaml"
+      DIRECTORY: "vr_mujoco_v1_data"
+    inputs:
+      command: ui/command
+      arm_right_action: ik/position_right
+      arm_right_observation: mujoco-v1/arm_right_observation
+      arm_left_action: ik/position_left
+      arm_left_observation: mujoco-v1/arm_left_observation

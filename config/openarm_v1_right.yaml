@@ -1,0 +1,17 @@
+# OpenArm V1 Right Arm Configuration
+# CAN interface for right arm (follower)
+
+can_interface: can0
+
+# Motor IDs for right arm (7 DOF + gripper)
+arm:
+  motor_ids: [1, 2, 3, 4, 5, 6, 7]
+  
+gripper:
+  motor_id: 8
+
+# Control parameters
+control:
+  kp: 30.0
+  kd: 1.0
+  timeout_ms: 10

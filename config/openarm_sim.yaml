@@ -1,0 +1,61 @@
+# OpenArm V1 Simulation Configuration
+# Control gains, offsets, and joint limits for sim-to-real alignment
+
+# V2 official control gains (same motors as V1)
+# Joints: [1-shoulder, 2-shoulder, 3-elbow, 4-elbow, 5-wrist, 6-wrist, 7-wrist, 8-gripper]
+control_gains:
+  kps: [70.0, 70.0, 70.0, 60.0, 10.0, 10.0, 10.0, 10.0]
+  kds: [2.75, 2.5, 2.0, 2.0, 0.7, 0.6, 0.5, 0.2]
+
+# Joint offsets: convert URDF/IK space to motor space
+# motor_pos = urdf_pos + offset
+# Motors calibrated to "arm lowered straight down"
+joint_offsets:
+  right_arm: [0.0, -0.506145, 1.570796, -1.745329, 0.0, 0.331612, -1.570796, 0.0]
+  left_arm: [0.0, 0.506145, -1.570796, -1.745329, 0.0, -0.331612, 1.570796, 0.0]
+
+# OpenArm V1 Joint Limits (radians)
+# CRITICAL: J2 differs from V2! V1: ±100°, V2: -190° to +10°
+# These limits are used for safety clamping before sending to motors
+joint_limits:
+  # [min, max] for each joint in radians
+  right_arm:
+    - [-1.396263, 3.490659]    # J1: -80° to +200°
+    - [-1.745329, 1.745329]    # J2: -100° to +100° (V1 SPECIFIC!)
+    - [-1.570796, 1.570796]    # J3: -90° to +90°
+    - [0.0, 2.443461]          # J4: 0° to +140°
+    - [-1.570796, 1.570796]    # J5: -90° to +90°
+    - [-0.785398, 0.785398]    # J6: -45° to +45°
+    - [-1.570796, 1.570796]    # J7: -90° to +90°
+    - [0.0, 0.044]             # Gripper: 0 to 44mm (slide joint)
+  left_arm:
+    - [-3.490659, 1.396263]    # J1: -200° to +80° (mirrored)
+    - [-1.745329, 1.745329]    # J2: -100° to +100° (V1 SPECIFIC!)
+    - [-1.570796, 1.570796]    # J3: -90° to +90°
+    - [0.0, 2.443461]          # J4: 0° to +140°
+    - [-1.570796, 1.570796]    # J5: -90° to +90°
+    - [-0.785398, 0.785398]    # J6: -45° to +45°
+    - [-1.570796, 1.570796]    # J7: -90° to +90°
+    - [0.0, 0.044]             # Gripper: 0 to 44mm (slide joint)
+
+# Velocity limits (rad/s) - conservative to prevent jerky motor movements
+velocity_limits:
+  - 3.0    # J1 (DM8009) - large shoulder motor
+  - 3.0    # J2 (DM8009)
+  - 4.0    # J3 (DM4340) - elbow
+  - 4.0    # J4 (DM4340)
+  - 6.0    # J5 (DM4310) - wrist
+  - 6.0    # J6 (DM4310)
+  - 6.0    # J7 (DM4310)
+  - 0.1    # Gripper (m/s for slide joint)
+
+# Acceleration limits (rad/s^2) - prevents sudden motor stress
+acceleration_limits:
+  - 10.0   # J1 - shoulder
+  - 10.0   # J2
+  - 15.0   # J3 - elbow
+  - 15.0   # J4
+  - 20.0   # J5 - wrist
+  - 20.0   # J6
+  - 20.0   # J7
+  - 0.5    # Gripper
