@@ -53,10 +53,11 @@ motor_config:
 gripper_posforce: true
 gripper_posforce_limits: [50.0, 1.0]
 
-# Control gains
+# Control gains - J4 (elbow) reduced to prevent overload fault (E)
+# High Kp causes torque spikes when position error is large
 control_gains:
-  kps: [70.0, 70.0, 70.0, 60.0, 10.0, 10.0, 10.0, 10.0]
-  kds: [2.75, 2.5, 2.0, 2.0, 0.7, 0.6, 0.5, 0.2]
+  kps: [70.0, 70.0, 70.0, 15.0, 10.0, 10.0, 10.0, 10.0]
+  kds: [2.75, 2.5, 2.0, 1.0, 0.7, 0.6, 0.5, 0.2]
 
 # Start configuration - all joints at zero (LeRobot calibration)
 start:
