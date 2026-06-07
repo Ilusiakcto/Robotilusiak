@@ -2,7 +2,7 @@
 # CAN interface for right arm (follower)
 
 can_interface:
-  right: can0
+  right_arm: can0
 
 # Motor IDs for right arm (7 DOF + gripper)
 arm:
