@@ -8,33 +8,32 @@ MuJoCo state with the real robot's position.
 import pyarrow as pa
 import numpy as np
 
-# Store latest positions
-_right_pos = None
-_left_pos = None
 
-
-def on_event(event, send_output, _metadata):
-    global _right_pos, _left_pos
+class Operator:
+    def __init__(self):
+        self.right_pos = None
+        self.left_pos = None
     
-    if event["type"] != "INPUT":
-        return
-    
-    eid = event["id"]
-    value = event["value"]
-    
-    # Extract qpos from state struct
-    if isinstance(value, pa.StructArray):
-        qpos = np.array(value.field("qpos"), dtype=np.float32)
-    else:
-        qpos = np.array(value, dtype=np.float32)
-    
-    if eid == "position_right":
-        _right_pos = qpos
-    elif eid == "position_left":
-        _left_pos = qpos
-    
-    # Only output when we have both positions
-    if _right_pos is not None and _left_pos is not None:
-        # Combine into 16-element array: [right[8], left[8]]
-        combined = np.concatenate([_right_pos[:8], _left_pos[:8]], dtype=np.float32)
-        send_output("position", pa.array(combined, type=pa.float32()))
+    def on_event(self, dora_event, send_output):
+        if dora_event["type"] != "INPUT":
+            return
+        
+        eid = dora_event["id"]
+        value = dora_event["value"]
+        
+        # Extract qpos from state struct
+        if isinstance(value, pa.StructArray):
+            qpos = np.array(value.field("qpos"), dtype=np.float32)
+        else:
+            qpos = np.array(value, dtype=np.float32)
+        
+        if eid == "position_right":
+            self.right_pos = qpos
+        elif eid == "position_left":
+            self.left_pos = qpos
+        
+        # Only output when we have both positions
+        if self.right_pos is not None and self.left_pos is not None:
+            # Combine into 16-element array: [right[8], left[8]]
+            combined = np.concatenate([self.right_pos[:8], self.left_pos[:8]], dtype=np.float32)
+            send_output("position", pa.array(combined, type=pa.float32()))
