@@ -1,26 +1,27 @@
 # OpenArm V1 Right Arm Configuration
 
-# Joint limits for V1 - note J2 has ±100° (±1.745 rad) vs V2's different range
+# Joint limits for V1 - matched to LeRobot calibration (±90° = ±1.5708 rad)
+# IMPORTANT: These match the lerobot calibration files in ~/.cache/huggingface/lerobot/calibration/
 joint_limits:
   right_arm:
-    - [-1.3, 2.0]           # joint1
-    - [-1.745329, 1.745329] # joint2 - V1 specific: ±100°
-    - [-1.570796, 1.570796] # joint3
-    - [0.4, 2.0]            # joint4 - conservative margin to prevent faults
-    - [-1.570796, 1.570796] # joint5
-    - [-0.785398, 0.785398] # joint6
-    - [-1.570796, 1.570796] # joint7
-    - [-1.047198, 0.4]      # joint8 (gripper)
+    - [-1.5708, 1.5708]     # joint1 - ±90°
+    - [-1.5708, 1.5708]     # joint2 - ±90°
+    - [-1.5708, 1.5708]     # joint3 - ±90°
+    - [-1.5708, 1.5708]     # joint4 - ±90° (elbow)
+    - [-1.5708, 1.5708]     # joint5 - ±90°
+    - [-1.5708, 1.5708]     # joint6 - ±90°
+    - [-1.5708, 1.5708]     # joint7 - ±90°
+    - [-1.5708, 1.5708]     # joint8 - ±90° (gripper)
 
   left_arm:
-    - [-2.0, 1.396263]      # joint1
-    - [-1.745329, 1.745329] # joint2 - V1 specific: ±100°
-    - [-1.570796, 1.570796] # joint3
-    - [0.4, 2.0]            # joint4 - conservative margin to prevent faults
-    - [-1.570796, 1.570796] # joint5
-    - [-0.785398, 0.785398] # joint6
-    - [-1.570796, 1.570796] # joint7
-    - [-0.4, 1.047198]      # joint8 (gripper)
+    - [-1.5708, 1.5708]     # joint1 - ±90°
+    - [-1.5708, 1.5708]     # joint2 - ±90°
+    - [-1.5708, 1.5708]     # joint3 - ±90°
+    - [-1.5708, 1.5708]     # joint4 - ±90° (elbow)
+    - [-1.5708, 1.5708]     # joint5 - ±90°
+    - [-1.5708, 1.5708]     # joint6 - ±90°
+    - [-1.5708, 1.5708]     # joint7 - ±90°
+    - [-1.5708, 1.5708]     # joint8 - ±90° (gripper)
 
 joint_offsets:
   right_arm: [0.0, -0.506145, 1.570796, -1.745329, 0.0, 0.331612, -1.570796, 0.0]

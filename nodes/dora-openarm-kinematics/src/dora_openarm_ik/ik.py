@@ -66,11 +66,12 @@ def _map_trigger_to_gripper_v1(trigger: float, side: str) -> float:
     return 0.044 * (1.0 - trigger)  # 0→0.044, 1→0
 
 
-# V1 robot resting position (from actual motor readings)
-# These values ensure MuJoCo starts at the robot's actual pose
-_V1_REST_POSITION = {
-    "right": [0.0, 0.075, -0.314, 1.62, 0.022, -0.021, 0.114, 0.0],  # J4=1.62 rad (elbow bent)
-    "left":  [0.0, -0.083, -0.006, 1.69, -0.018, 0.019, -0.113, 0.0],  # J4=1.69 rad (elbow bent)
+# V1 zero position (from LeRobot calibration with homing_offset=0)
+# All joints at 0 rad = calibrated zero position (arms straight down)
+# Joint limits are ±90° (±1.5708 rad) from this zero
+_V1_ZERO_POSITION = {
+    "right": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # All at zero
+    "left":  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # All at zero
 }
 
 
@@ -84,25 +85,25 @@ def _run(args: argparse.Namespace) -> None:
         print("[ik] Using V1 gripper mapping (slide joint, 0-0.044m)")
         print("[ik] V1: Arms will stay still until trigger pressed >30%")
         
-        # Initialize MuJoCo to robot's actual resting position
-        # This prevents the "elbow arch" on startup
+        # Initialize MuJoCo to zero position (matches LeRobot calibration)
+        # Robot should be at zero position before starting teleoperation
         import mujoco
         qpos = setup.data.qpos
         
-        # Find joint indices and set to rest position
-        for side, rest_pos in _V1_REST_POSITION.items():
+        # Find joint indices and set to zero position
+        for side, zero_pos in _V1_ZERO_POSITION.items():
             for i in range(8):  # 7 arm joints + 1 gripper
                 joint_name = f"openarm_{side}_joint{i+1}" if i < 7 else f"openarm_{side}_finger_joint"
                 try:
                     jnt_id = mujoco.mj_name2id(setup.model, mujoco.mjtObj.mjOBJ_JOINT, joint_name)
                     if jnt_id >= 0:
                         qpos_adr = setup.model.jnt_qposadr[jnt_id]
-                        qpos[qpos_adr] = rest_pos[i]
+                        qpos[qpos_adr] = zero_pos[i]
                 except:
                     pass
         
         mujoco.mj_forward(setup.model, setup.data)
-        print(f"[ik] V1 initialized to robot resting position (J4 at ~1.6 rad)")
+        print(f"[ik] V1 initialized to zero position (all joints at 0, per LeRobot calibration)")
     else:
         gripper_fn = _map_trigger_to_gripper_v2
         trigger_threshold = 0.0  # V2: no threshold (backward compatible)
