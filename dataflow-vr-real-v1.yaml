@@ -95,22 +95,10 @@ nodes:
       target_left: udp-receiver/pose_left
       trigger_right: udp-receiver/trigger_right
       trigger_left: udp-receiver/trigger_left
-      # Position feedback from robot - syncs IK state to actual robot position
-      position: position-merger/position
     outputs:
       - position_left
       - position_right
       - status
-  
-  # Merge left and right arm positions into single 16-element array for IK sync
-  - id: position-merger
-    operator:
-      python: scripts/position_merger.py
-      inputs:
-        position_right: follower-right/state
-        position_left: follower-left/state
-      outputs:
-        - position
 
   # ── Real Robot Arms (Follower) ──
   # These connect to the physical OpenArm v1 via CAN bus
