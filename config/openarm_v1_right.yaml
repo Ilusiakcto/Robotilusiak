@@ -7,7 +7,7 @@ joint_limits:
     - [-1.5708, 1.5708]     # joint1 - ±90°
     - [-1.5708, 1.5708]     # joint2 - ±90°
     - [-1.5708, 1.5708]     # joint3 - ±90°
-    - [-1.5708, 1.5708]     # joint4 - ±90° (elbow)
+    - [-1.0, 1.0]            # joint4 - ±57° (elbow) - tighter to prevent faults
     - [-1.5708, 1.5708]     # joint5 - ±90°
     - [-1.5708, 1.5708]     # joint6 - ±90°
     - [-1.5708, 1.5708]     # joint7 - ±90°
@@ -17,7 +17,7 @@ joint_limits:
     - [-1.5708, 1.5708]     # joint1 - ±90°
     - [-1.5708, 1.5708]     # joint2 - ±90°
     - [-1.5708, 1.5708]     # joint3 - ±90°
-    - [-1.5708, 1.5708]     # joint4 - ±90° (elbow)
+    - [-1.0, 1.0]            # joint4 - ±57° (elbow) - tighter to prevent faults
     - [-1.5708, 1.5708]     # joint5 - ±90°
     - [-1.5708, 1.5708]     # joint6 - ±90°
     - [-1.5708, 1.5708]     # joint7 - ±90°
@@ -33,7 +33,7 @@ joint_delta_position_limits:
   - 10.0 # J1
   - 10.0 # J2
   - 10.0 # J3
-  - 10.0 # J4
+  - 0.5  # J4 - elbow, slower to prevent faults
   - 10.0 # J5
   - 10.0 # J6
   - 10.0 # J7
@@ -55,8 +55,8 @@ gripper_posforce_limits: [50.0, 1.0]
 
 # Control gains
 control_gains:
-  kps: [70.0, 70.0, 70.0, 60.0, 10.0, 10.0, 10.0, 10.0]
-  kds: [2.75, 2.5, 2.0, 2.0, 0.7, 0.6, 0.5, 0.2]
+  kps: [70.0, 70.0, 70.0, 40.0, 10.0, 10.0, 10.0, 10.0]
+  kds: [2.75, 2.5, 2.0, 1.5, 0.7, 0.6, 0.5, 0.2]
 
 # Start configuration - all joints at zero (LeRobot calibration)
 start:
