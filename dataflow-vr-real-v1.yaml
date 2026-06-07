@@ -107,8 +107,8 @@ nodes:
   - id: follower-right
     build: pip install -e nodes/dora-openarm
     path: dora-openarm
-    # Config file specifies CAN interface (can0) and motor IDs
-    args: "--side right --config config/openarm_v1_right.yaml --align-trigger gripper"
+    # Uses default openarm_cell.yaml config bundled with openarm_driver
+    args: "--side right --align-trigger gripper"
     inputs:
       request_state: ik/position_right
       move_position: ik/position_right
@@ -119,8 +119,8 @@ nodes:
   - id: follower-left
     build: pip install -e nodes/dora-openarm
     path: dora-openarm
-    # Config file specifies CAN interface (can1) and motor IDs
-    args: "--side left --config config/openarm_v1_left.yaml --align-trigger gripper"
+    # Uses default openarm_cell.yaml config bundled with openarm_driver
+    args: "--side left --align-trigger gripper"
     inputs:
       request_state: ik/position_left
       move_position: ik/position_left
