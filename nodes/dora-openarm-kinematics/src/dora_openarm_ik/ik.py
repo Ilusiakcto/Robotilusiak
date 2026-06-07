@@ -72,24 +72,22 @@ def _run(args: argparse.Namespace) -> None:
     # Select gripper mapping based on robot version
     if args.gripper_type == "v1":
         gripper_fn = _map_trigger_to_gripper_v1
+        trigger_threshold = 0.3  # V1: trigger must be >30% pressed to activate
         print("[ik] Using V1 gripper mapping (slide joint, 0-0.044m)")
-        
-        # V1: Initialize to zero position (arms lowered/down)
-        # All joints at 0 = arms hanging down, matching motor calibration
-        import mujoco
-        
-        # Set all arm joints to zero (default MuJoCo state)
-        # No need to set explicitly - MuJoCo initializes to ref values (0.0)
-        mujoco.mj_forward(setup.model, setup.data)
-        print("[ik] V1 initialized to zero position (arms down)")
+        print("[ik] V1: Arms will stay still until trigger pressed >30%")
     else:
         gripper_fn = _map_trigger_to_gripper_v2
+        trigger_threshold = 0.0  # V2: no threshold (backward compatible)
         print("[ik] Using V2 gripper mapping (hinge joint, radians)")
     
     kin = Kinematics(setup, ik_params_from_args(args))
 
     node = dora.Node()
     node.send_output("status", pa.array(["ready"]))
+    
+    # Track trigger states - arms don't move until trigger is pressed
+    trigger_active = {"right": False, "left": False}
+    trigger_values = {"right": 0.0, "left": 0.0}
 
     for event in node:
         if event["type"] != "INPUT":
@@ -116,11 +114,17 @@ def _run(args: argparse.Namespace) -> None:
             kin.set_target("left", values)
 
         elif eid == "trigger_right":
-            kin.set_gripper("right", gripper_fn(float(values[0]), "right"))
+            tval = float(values[0])
+            trigger_values["right"] = tval
+            trigger_active["right"] = tval > trigger_threshold
+            kin.set_gripper("right", gripper_fn(tval, "right"))
             continue
 
         elif eid == "trigger_left":
-            kin.set_gripper("left", gripper_fn(float(values[0]), "left"))
+            tval = float(values[0])
+            trigger_values["left"] = tval
+            trigger_active["left"] = tval > trigger_threshold
+            kin.set_gripper("left", gripper_fn(tval, "left"))
             continue
 
         else:
@@ -134,8 +138,12 @@ def _run(args: argparse.Namespace) -> None:
             continue
 
         ts = {"timestamp": time.time_ns()}
-        node.send_output("position_right", pa.array(result[:8],  type=pa.float32()), ts)
-        node.send_output("position_left",  pa.array(result[8:16], type=pa.float32()), ts)
+        
+        # Only send positions for arms with active triggers (V1 safety)
+        if trigger_active["right"]:
+            node.send_output("position_right", pa.array(result[:8],  type=pa.float32()), ts)
+        if trigger_active["left"]:
+            node.send_output("position_left",  pa.array(result[8:16], type=pa.float32()), ts)
 
 
 def main() -> None:
