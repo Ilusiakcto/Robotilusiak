@@ -1,0 +1,5 @@
+dora-rs==0.5.0
+dora-rs-cli==0.5.0
+numpy>=2.4.4
+pyarrow>=23.0.1
+scipy>=1.17.1

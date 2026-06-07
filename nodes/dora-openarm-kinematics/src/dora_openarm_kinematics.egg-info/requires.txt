@@ -1,0 +1,4 @@
+dora-rs==0.5.0
+dora-rs-cli==0.5.0
+openarm-control
+pyarrow
