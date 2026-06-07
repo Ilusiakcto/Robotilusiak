@@ -200,7 +200,7 @@ limitations under the License.
                 class="visual" />
               <body name="openarm_left_link4" pos="-0.0 0.0315 0.15375" quat="1.0 0.0 0.0 0.0">
                 <joint name="openarm_left_joint4" type="hinge" ref="0.0" class="motor_DM4340"
-                  range="0.0 2.443461" axis="0 1 0" />
+                  range="0.15 2.3" axis="0 1 0" />
                 <inertial pos="-0.0029006831074562967 -0.03030575826634669 0.06339637422196209"
                   quat="1.0 0.0 0.0 0.0" mass="0.6348534566833373"
                   diaginertia="0.001577 0.001346 0.001104" />
@@ -383,7 +383,7 @@ limitations under the License.
                 class="visual" />
               <body name="openarm_right_link4" pos="-0.0 0.0315 0.15375" quat="1.0 0.0 0.0 0.0">
                 <joint name="openarm_right_joint4" type="hinge" ref="0.0" class="motor_DM4340"
-                  range="0.0 2.443461" axis="0 1 0" />
+                  range="0.15 2.3" axis="0 1 0" />
                 <inertial pos="-0.0029006831074562967 -0.03030575826634669 0.06339637422196209"
                   quat="1.0 0.0 0.0 0.0" mass="0.6348534566833373"
                   diaginertia="0.001577 0.001346 0.001104" />

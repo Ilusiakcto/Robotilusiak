@@ -137,7 +137,7 @@ limitations under the License.
           <body name="openarm_link4" pos="0 0.0315 0.15375">
             <inertial pos="-0.0029006831074562967 -0.03030575826634669 0.06339637422196209" quat="1.0 0.0 0.0 0.0"
               mass="1.3699337287025453" diaginertia="0.001577 0.001346 0.001104"/>
-            <joint name="openarm_joint4" type="hinge" ref="0.0" pos="0 0 0" axis="0 1 0" range="0.0 2.443461"
+            <joint name="openarm_joint4" type="hinge" ref="0.0" pos="0 0 0" axis="0 1 0" range="0.15 2.3"
               class="motor"/>
             <geom name="openarm_link4_visual_0" pos="0 -0.0315 -0.3425" quat="1 0 0 0" type="mesh"
               material="matte_black" contype="0" conaffinity="0" group="1" density="0" mesh="link4_0.obj"/>
