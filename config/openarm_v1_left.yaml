@@ -11,7 +11,7 @@ joint_limits:
     - [-1.5708, 1.5708]     # joint5 - ±90°
     - [-1.5708, 1.5708]     # joint6 - ±90°
     - [-1.5708, 1.5708]     # joint7 - ±90°
-    - [-1.5708, 1.5708]     # joint8 - ±90° (gripper)
+    - [0.0, 0.044]           # joint8 - V1 gripper slide joint (meters)
 
   left_arm:
     - [-1.5708, 1.5708]     # joint1 - ±90°
@@ -21,7 +21,7 @@ joint_limits:
     - [-1.5708, 1.5708]     # joint5 - ±90°
     - [-1.5708, 1.5708]     # joint6 - ±90°
     - [-1.5708, 1.5708]     # joint7 - ±90°
-    - [-1.5708, 1.5708]     # joint8 - ±90° (gripper)
+    - [0.0, 0.044]           # joint8 - V1 gripper slide joint (meters)
 
 joint_offsets:
   right_arm: [0.0, -0.506145, 1.570796, -1.745329, 0.0, 0.331612, -1.570796, 0.0]
