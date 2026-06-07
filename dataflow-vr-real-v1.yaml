@@ -87,9 +87,8 @@ nodes:
     build: pip install -e nodes/dora-openarm-kinematics --force-reinstall --no-deps
     path: dora-openarm-ik
     # V1 requires specifying the XML, EE frame names, and gripper type (slide joint)
-    # Clone openarm_mujoco repo: git clone https://github.com/enactic/openarm-mujoco ~/openarm_mujoco
     # The XML has V1 joint limits (J2: ±100°) - different from V2!
-    args: "--mode bimanual --xml ~/openarm_mujoco/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.1 --damping 0.1 --posture-cost 0.01 --lm-damping 0.01"
+    args: "--mode bimanual --xml models/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.1 --damping 0.1 --posture-cost 0.01 --lm-damping 0.01"
     inputs:
       tick: quittable-tick-leader/tick
       target_right: udp-receiver/pose_right
