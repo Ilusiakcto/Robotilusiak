@@ -1,14 +1,78 @@
 # OpenArm V1 Right Arm Configuration
 
-can_interface:
-  right_arm: can0
+# Joint limits for V1 - note J2 has ±100° (±1.745 rad) vs V2's different range
+joint_limits:
+  right_arm:
+    - [-1.3, 2.0]           # joint1
+    - [-1.745329, 1.745329] # joint2 - V1 specific: ±100°
+    - [-1.570796, 1.570796] # joint3
+    - [0.0, 2.443461]       # joint4
+    - [-1.570796, 1.570796] # joint5
+    - [-0.785398, 0.785398] # joint6
+    - [-1.570796, 1.570796] # joint7
+    - [-1.047198, 0.4]      # joint8 (gripper)
+
+  left_arm:
+    - [-2.0, 1.396263]      # joint1
+    - [-1.745329, 1.745329] # joint2 - V1 specific: ±100°
+    - [-1.570796, 1.570796] # joint3
+    - [0.0, 2.443461]       # joint4
+    - [-1.570796, 1.570796] # joint5
+    - [-0.785398, 0.785398] # joint6
+    - [-1.570796, 1.570796] # joint7
+    - [-0.4, 1.047198]      # joint8 (gripper)
 
 joint_offsets:
   right_arm: [0.0, -0.506145, 1.570796, -1.745329, 0.0, 0.331612, -1.570796, 0.0]
+  left_arm: [0.0, 0.506145, -1.570796, -1.745329, 0.0, -0.331612, 1.570796, 0.0]
 
-# Motor configuration for right arm
+# Joint delta position limits (rad/s)
+joint_delta_position_limits:
+  - 1.8 # J0
+  - 1.8 # J1
+  - 3.3 # J2
+  - 2.3 # J3
+  - 3.5 # J4
+  - 3.5 # J5
+  - 3.5 # J6
+  - 3.5 # J7
+
+# CAN interface
+can_interface:
+  right_arm: "can0"
+  left_arm: "can1"
+
+# Motor configuration - same motors as V2/Cell
 motor_config:
-  right_arm:
-    motor_ids: [1, 2, 3, 4, 5, 6, 7, 8]
-    kps: [70.0, 70.0, 70.0, 60.0, 10.0, 10.0, 10.0, 10.0]
-    kds: [2.75, 2.5, 2.0, 2.0, 0.7, 0.6, 0.5, 0.2]
+  types: ['DM8009', 'DM8009', 'DM4340', 'DM4340', 'DM4310', 'DM4310', 'DM4310', 'DM4310']
+  send_ids: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+  recv_ids: [0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18]
+
+# Gripper settings
+gripper_posforce: true
+gripper_posforce_limits: [50.0, 1.0]
+
+# Control gains
+control_gains:
+  kps: [70.0, 70.0, 70.0, 60.0, 10.0, 10.0, 10.0, 10.0]
+  kds: [2.75, 2.5, 2.0, 2.0, 0.7, 0.6, 0.5, 0.2]
+
+# Start configuration
+start:
+  moves:
+    - name: "initial"
+      position:
+        right_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
+        left_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
+      hz: 50
+      duration: 2
+
+# Stop configuration
+stop:
+  moves:
+    - name: "initial"
+      position:
+        right_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
+        left_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
+      hz: 50
+      duration: 2
