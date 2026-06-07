@@ -74,6 +74,31 @@ _V1_ZERO_POSITION = {
     "left":  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # All at zero
 }
 
+# Max position change per step (rad) - prevents sudden jumps that fault motors
+# Lower = smoother but slower tracking, Higher = faster but can fault
+# At 50Hz, 0.1 rad/step = 5 rad/s max velocity
+_MAX_DELTA_PER_STEP = np.array([
+    0.15,  # J1 - shoulder
+    0.15,  # J2 - shoulder  
+    0.15,  # J3 - elbow
+    0.08,  # J4 - elbow (most sensitive, prone to faulting)
+    0.2,   # J5 - wrist
+    0.2,   # J6 - wrist
+    0.2,   # J7 - wrist
+    0.01,  # J8 - gripper (meters for V1)
+], dtype=np.float32)
+
+
+def _smooth_position(new_pos: np.ndarray, prev_pos: np.ndarray) -> np.ndarray:
+    """Rate-limit position changes to prevent motor faults."""
+    if prev_pos is None:
+        return new_pos
+    
+    delta = new_pos - prev_pos
+    # Clamp each joint's delta to max allowed
+    clamped_delta = np.clip(delta, -_MAX_DELTA_PER_STEP, _MAX_DELTA_PER_STEP)
+    return prev_pos + clamped_delta
+
 
 def _run(args: argparse.Namespace) -> None:
     setup = setup_from_args(args)
@@ -118,6 +143,9 @@ def _run(args: argparse.Namespace) -> None:
     trigger_active = {"right": False, "left": False}
     trigger_values = {"right": 0.0, "left": 0.0}
     first_activation = {"right": True, "left": True}  # Track first trigger press
+    
+    # Track previous positions for smoothing (prevents sudden jumps)
+    prev_pos = {"right": None, "left": None}
 
     for event in node:
         if event["type"] != "INPUT":
@@ -174,9 +202,17 @@ def _run(args: argparse.Namespace) -> None:
         
         # Only send positions for arms with active triggers (V1 safety)
         if trigger_active["right"]:
-            node.send_output("position_right", pa.array(result[:8],  type=pa.float32()), ts)
+            pos_right = result[:8].copy()
+            if args.gripper_type == "v1":
+                pos_right = _smooth_position(pos_right, prev_pos["right"])
+                prev_pos["right"] = pos_right.copy()
+            node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
         if trigger_active["left"]:
-            node.send_output("position_left",  pa.array(result[8:16], type=pa.float32()), ts)
+            pos_left = result[8:16].copy()
+            if args.gripper_type == "v1":
+                pos_left = _smooth_position(pos_left, prev_pos["left"])
+                prev_pos["left"] = pos_left.copy()
+            node.send_output("position_left", pa.array(pos_left, type=pa.float32()), ts)
 
 
 def main() -> None:
