@@ -66,6 +66,14 @@ def _map_trigger_to_gripper_v1(trigger: float, side: str) -> float:
     return 0.044 * (1.0 - trigger)  # 0→0.044, 1→0
 
 
+# V1 robot resting position (from actual motor readings)
+# These values ensure MuJoCo starts at the robot's actual pose
+_V1_REST_POSITION = {
+    "right": [0.0, 0.075, -0.314, 1.62, 0.022, -0.021, 0.114, 0.0],  # J4=1.62 rad (elbow bent)
+    "left":  [0.0, -0.083, -0.006, 1.69, -0.018, 0.019, -0.113, 0.0],  # J4=1.69 rad (elbow bent)
+}
+
+
 def _run(args: argparse.Namespace) -> None:
     setup = setup_from_args(args)
     
@@ -75,6 +83,26 @@ def _run(args: argparse.Namespace) -> None:
         trigger_threshold = 0.3  # V1: trigger must be >30% pressed to activate
         print("[ik] Using V1 gripper mapping (slide joint, 0-0.044m)")
         print("[ik] V1: Arms will stay still until trigger pressed >30%")
+        
+        # Initialize MuJoCo to robot's actual resting position
+        # This prevents the "elbow arch" on startup
+        import mujoco
+        qpos = setup.data.qpos
+        
+        # Find joint indices and set to rest position
+        for side, rest_pos in _V1_REST_POSITION.items():
+            for i in range(8):  # 7 arm joints + 1 gripper
+                joint_name = f"openarm_{side}_joint{i+1}" if i < 7 else f"openarm_{side}_finger_joint"
+                try:
+                    jnt_id = mujoco.mj_name2id(setup.model, mujoco.mjtObj.mjOBJ_JOINT, joint_name)
+                    if jnt_id >= 0:
+                        qpos_adr = setup.model.jnt_qposadr[jnt_id]
+                        qpos[qpos_adr] = rest_pos[i]
+                except:
+                    pass
+        
+        mujoco.mj_forward(setup.model, setup.data)
+        print(f"[ik] V1 initialized to robot resting position (J4 at ~1.6 rad)")
     else:
         gripper_fn = _map_trigger_to_gripper_v2
         trigger_threshold = 0.0  # V2: no threshold (backward compatible)
@@ -88,6 +116,7 @@ def _run(args: argparse.Namespace) -> None:
     # Track trigger states - arms don't move until trigger is pressed
     trigger_active = {"right": False, "left": False}
     trigger_values = {"right": 0.0, "left": 0.0}
+    first_activation = {"right": True, "left": True}  # Track first trigger press
 
     for event in node:
         if event["type"] != "INPUT":
@@ -97,8 +126,11 @@ def _run(args: argparse.Namespace) -> None:
         values = np.array(event["value"], dtype=np.float32)
 
         if eid == "position":
+            # Sync IK internal state to robot's actual position
+            # This is critical for smooth operation
             if values.shape == (16,):
                 kin.sync(values)
+                print(f"[ik] Synced to robot position: R-J4={values[3]:.3f}, L-J4={values[11]:.3f}")
             continue
 
         if eid == "target_right" and "right" in kin.setup.sides:

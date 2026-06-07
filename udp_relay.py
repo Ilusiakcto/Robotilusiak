@@ -46,11 +46,11 @@ def relay_udp(local_host, local_port, remote_host, remote_port):
     # Socket to send to Ireland (Tailscale)
     remote_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
-    print(f"[relay] UDP Relay started")
-    print(f"[relay] Listening on {local_host}:{local_port}")
-    print(f"[relay] Forwarding to {remote_host}:{remote_port}")
-    print(f"[relay] Configure Quest VR app to connect to your local IP (192.168.1.129) port {local_port}")
-    print("-" * 60)
+    print(f"[relay] UDP Relay started", flush=True)
+    print(f"[relay] Listening on {local_host}:{local_port}", flush=True)
+    print(f"[relay] Forwarding to {remote_host}:{remote_port}", flush=True)
+    print(f"[relay] Configure Quest VR app to connect to your local IP port {local_port}", flush=True)
+    print("-" * 60, flush=True)
     
     quest_addr = None
     packet_count = 0

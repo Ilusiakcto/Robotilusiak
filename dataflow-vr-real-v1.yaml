@@ -95,10 +95,22 @@ nodes:
       target_left: udp-receiver/pose_left
       trigger_right: udp-receiver/trigger_right
       trigger_left: udp-receiver/trigger_left
+      # Position feedback from robot - syncs IK state to actual robot position
+      position: position-merger/position
     outputs:
       - position_left
       - position_right
       - status
+  
+  # Merge left and right arm positions into single 16-element array for IK sync
+  - id: position-merger
+    operator:
+      python: scripts/position_merger.py
+      inputs:
+        position_right: follower-right/state
+        position_left: follower-left/state
+      outputs:
+        - position
 
   # ── Real Robot Arms (Follower) ──
   # These connect to the physical OpenArm v1 via CAN bus
@@ -107,8 +119,9 @@ nodes:
   - id: follower-right
     build: pip install -e nodes/dora-openarm
     path: dora-openarm
-    # Uses default openarm_cell.yaml config bundled with openarm_driver
-    args: "--side right --align-trigger gripper"
+    # Config file specifies CAN interface (can0) and motor IDs
+    # IK node handles trigger gating, no align-trigger needed here
+    args: "--side right --config config/openarm_v1_right.yaml"
     inputs:
       request_state: ik/position_right
       move_position: ik/position_right
@@ -119,8 +132,9 @@ nodes:
   - id: follower-left
     build: pip install -e nodes/dora-openarm
     path: dora-openarm
-    # Uses default openarm_cell.yaml config bundled with openarm_driver
-    args: "--side left --align-trigger gripper"
+    # Config file specifies CAN interface (can1) and motor IDs
+    # IK node handles trigger gating, no align-trigger needed here
+    args: "--side left --config config/openarm_v1_left.yaml"
     inputs:
       request_state: ik/position_left
       move_position: ik/position_left
