@@ -58,22 +58,22 @@ control_gains:
   kps: [70.0, 70.0, 70.0, 60.0, 10.0, 10.0, 10.0, 10.0]
   kds: [2.75, 2.5, 2.0, 2.0, 0.7, 0.6, 0.5, 0.2]
 
-# Start configuration
+# Start configuration - all joints at zero (LeRobot calibration)
 start:
   moves:
     - name: "initial"
       position:
-        right_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
-        left_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
+        right_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
       hz: 50
       duration: 2
 
-# Stop configuration
+# Stop configuration - all joints at zero
 stop:
   moves:
     - name: "initial"
       position:
-        right_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
-        left_arm: [0.0, 0.0, 0.0, 1.5707963267948966, 0.0, 0.0, 0.0, 0.0]
+        right_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
       hz: 50
       duration: 2
