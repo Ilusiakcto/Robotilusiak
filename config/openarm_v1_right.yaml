@@ -1,23 +1,14 @@
 # OpenArm V1 Right Arm Configuration
-# CAN interface for right arm (follower)
 
 can_interface:
   right_arm: can0
 
-# Joint offsets: convert URDF/IK space to motor space
-# motor_pos = urdf_pos + offset
 joint_offsets:
   right_arm: [0.0, -0.506145, 1.570796, -1.745329, 0.0, 0.331612, -1.570796, 0.0]
 
-# Motor IDs for right arm (7 DOF + gripper)
-arm:
-  motor_ids: [1, 2, 3, 4, 5, 6, 7]
-  
-gripper:
-  motor_id: 8
-
-# Control parameters
-control:
-  kp: 30.0
-  kd: 1.0
-  timeout_ms: 10
+# Motor configuration for right arm
+motor_config:
+  right_arm:
+    motor_ids: [1, 2, 3, 4, 5, 6, 7, 8]
+    kps: [70.0, 70.0, 70.0, 60.0, 10.0, 10.0, 10.0, 10.0]
+    kds: [2.75, 2.5, 2.0, 2.0, 0.7, 0.6, 0.5, 0.2]
