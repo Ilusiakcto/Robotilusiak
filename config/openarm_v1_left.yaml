@@ -26,16 +26,16 @@ joint_offsets:
   right_arm: [0.0, -0.506145, 1.570796, -1.745329, 0.0, 0.331612, -1.570796, 0.0]
   left_arm: [0.0, 0.506145, -1.570796, -1.745329, 0.0, -0.331612, 1.570796, 0.0]
 
-# Joint delta position limits (rad/s)
+# Joint delta position limits (rad/s) - reduced for safety
 joint_delta_position_limits:
-  - 1.8 # J0
-  - 1.8 # J1
-  - 3.3 # J2
-  - 2.3 # J3
-  - 3.5 # J4
-  - 3.5 # J5
-  - 3.5 # J6
-  - 3.5 # J7
+  - 0.8 # J0 - slower for safety
+  - 0.8 # J1
+  - 1.5 # J2
+  - 1.0 # J3
+  - 1.5 # J4
+  - 1.5 # J5
+  - 1.5 # J6
+  - 1.5 # J7
 
 # CAN interface
 can_interface:

@@ -79,14 +79,14 @@ _FRAME_ROT_V2: np.ndarray = np.array([
     [  0.,   1.,   0.],  # robot Z = +VR Y
 ], dtype=np.float64)
 
-# V1 frame rotation - "Same direction" mapping for remote teleoperation
-# User moves forward → robot moves forward (user feels like they ARE the robot)
+# V1 frame rotation - "Mirror" mapping for remote teleoperation
+# User moves forward → robot moves backward (facing user like a mirror)
 # VR (after LH->RH flip): X=right, Y=up, Z=backward
 # Robot world: X=forward, Y=left, Z=up
 _FRAME_ROT_V1: np.ndarray = np.array([
-    [  0.,   0.,  -1.],  # robot X (forward) = -VR Z (forward in VR = forward in robot)
-    [ -1.,   0.,   0.],  # robot Y (left)    = -VR X (right in VR = right in robot = -left)
-    [  0.,   1.,   0.],  # robot Z (up)      = +VR Y (up in VR = up in robot)
+    [  0.,   0.,   1.],  # robot X (forward) = +VR Z (user forward = robot backward/toward user)
+    [  1.,   0.,   0.],  # robot Y (left)    = +VR X (user right = robot left from user's view)
+    [  0.,   1.,   0.],  # robot Z (up)      = +VR Y (up)
 ], dtype=np.float64)
 
 # V2 workspace offset (TCP at ~1.12m height, arms forward)
