@@ -66,10 +66,10 @@ nodes:
       - tick
 
   - id: udp-receiver
-    build: pip install -e nodes/dora-openarm-vr
+    build: pip install -e nodes/dora-openarm-vr --force-reinstall --no-deps
     path: dora-openarm-quest-receiver
-    # Use --robot-version v1 for correct workspace mapping (shoulders at 0.698m)
     # Listens on 0.0.0.0:5006 for VR data forwarded via Tailscale
+    # --robot-version v1 uses V1 workspace offset (arms start down)
     args: "--host 0.0.0.0 --port 5006 --robot-version v1"
     inputs:
       tick: quittable-tick-leader/tick
@@ -84,12 +84,12 @@ nodes:
       - status
 
   - id: ik
-    build: pip install -e nodes/dora-openarm-kinematics
+    build: pip install -e nodes/dora-openarm-kinematics --force-reinstall --no-deps
     path: dora-openarm-ik
     # V1 requires specifying the XML, EE frame names, and gripper type (slide joint)
-    # Uses openarm-mujoco package XML path (pip install openarm-mujoco)
+    # Clone openarm_mujoco repo: git clone https://github.com/enactic/openarm-mujoco ~/openarm_mujoco
     # The XML has V1 joint limits (J2: ±100°) - different from V2!
-    args: "--mode bimanual --xml-package openarm_mujoco.v1 --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.1 --damping 0.1 --posture-cost 0.01 --lm-damping 0.01"
+    args: "--mode bimanual --xml ~/openarm_mujoco/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.1 --damping 0.1 --posture-cost 0.01 --lm-damping 0.01"
     inputs:
       tick: quittable-tick-leader/tick
       target_right: udp-receiver/pose_right
