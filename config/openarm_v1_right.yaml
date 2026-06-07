@@ -29,14 +29,14 @@ joint_offsets:
 
 # Joint delta position limits (rad/s) - reduced for safety
 joint_delta_position_limits:
-  - 1.0 # J0
-  - 1.0 # J1
-  - 1.0 # J2
-  - 1.0 # J3
-  - 1.0 # J4
-  - 1.0 # J5
-  - 1.0 # J6
-  - 1.0 # J7
+  - 10.0 # J0
+  - 10.0 # J1
+  - 10.0 # J2
+  - 10.0 # J3
+  - 10.0 # J4
+  - 10.0 # J5
+  - 10.0 # J6
+  - 10.0 # J7
 
 # CAN interface
 can_interface:
