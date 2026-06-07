@@ -1,7 +1,8 @@
 # OpenArm V1 Right Arm Configuration
 # CAN interface for right arm (follower)
 
-can_interface: can0
+can_interface:
+  right: can0
 
 # Motor IDs for right arm (7 DOF + gripper)
 arm:
