@@ -1,4 +1,4 @@
-# OpenArm V1 VR Teleoperation - Technical Documentation
+# OpenArm V1 VR Teleoperation - Technical Summary
 
 ## Overview
 
@@ -147,21 +147,21 @@ UDP_RELAY_REMOTE_PORT=5006
 
 ---
 
-## 3. What We Achieved
+## 3. What We are trying to Achieve
 
 | Feature | Status |
 |---------|--------|
-| VR pose reception via UDP | ✅ Working |
-| Coordinate transformation (LH→RH) | ✅ Working |
-| Trigger gating (>30% to activate) | ✅ Working |
-| Simultaneous bimanual control | ✅ Working |
-| IK solver with V1 joint limits | ✅ Working |
-| V1 gripper mapping (slide joint) | ✅ Implemented |
-| Zero position initialization | ✅ Working |
-| Position smoothing | ✅ Implemented |
-| Kenya→Ireland UDP relay | ✅ Working |
-| MuJoCo simulation dataflow | ✅ Working |
-| Real robot dataflow | ⚠️ Partially working |
+| VR pose reception via UDP 
+| Coordinate transformation (LH→RH) 
+| Trigger gating (>30% to activate) 
+| Simultaneous bimanual control 
+| IK solver with V1 joint limits 
+| V1 gripper mapping (slide joint) 
+| Zero position initialization 
+| Position smoothing 
+| Kenya→Ireland UDP relay 
+| MuJoCo simulation dataflow 
+| Real robot dataflow |
 
 ---
 
@@ -195,11 +195,6 @@ UDP_RELAY_REMOTE_PORT=5006
 **Hypothesis:**
 The IK solver may be commanding positions that require the elbow to move through configurations that demand high torque, even with smoothing. The fundamental issue may be in how the IK solver plans trajectories.
 
-**Next Steps to Try:**
-1. Add torque limiting in motor driver
-2. Implement trajectory interpolation instead of direct position commands
-3. Investigate IK null-space optimization to avoid high-torque configurations
-4. Compare IK output between VR and manual teleoperation to identify differences
 
 ### 4.2 Gripper Unresponsiveness
 
@@ -250,28 +245,3 @@ Ireland PC - Dora Dataflow
 
 ---
 
-## 7. Recommendations for Next Developer
-
-1. **J4 Fault Investigation:**
-   - Add detailed logging of IK output vs actual motor position
-   - Compare trajectories between manual and VR teleoperation
-   - Consider implementing velocity-based control instead of position-based
-
-2. **Gripper Debugging:**
-   - Add logging at each stage: trigger input → gripper mapping → IK output → motor command
-   - Verify CAN messages are being sent for gripper motor
-
-3. **General Improvements:**
-   - Implement proper trajectory interpolation
-   - Add motor fault detection and auto-recovery
-   - Consider adding torque feedback for compliance control
-
----
-
-## 8. Contact
-
-For questions about this documentation or the codebase, refer to the commit history in the melvine-git/openarm_teleoperation repository.
-
----
-
-*Last updated: June 2026*
