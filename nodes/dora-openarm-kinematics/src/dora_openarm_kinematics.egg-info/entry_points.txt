@@ -1,3 +1,0 @@
-[console_scripts]
-dora-openarm-fk = dora_openarm_fk:main
-dora-openarm-ik = dora_openarm_ik:main
