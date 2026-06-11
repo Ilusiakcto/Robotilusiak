@@ -139,7 +139,13 @@ class QuestPoseProcessor:
         active_p_ref     = p_ref
         active_r_ref_inv = r_ref.inv()
 
-        r_fix = Rotation.from_euler("z", 90, degrees=True)
+        # Rotation fix to align controller orientation with gripper
+        # V2: 90° Z rotation (original)
+        # V1: No rotation needed for direct mapping
+        if self.robot_version == "v1":
+            r_fix = Rotation.identity()
+        else:
+            r_fix = Rotation.from_euler("z", 90, degrees=True)
 
         def _rectify(raw: dict) -> np.ndarray:
             p, r = parse_lh_to_rh(raw)
