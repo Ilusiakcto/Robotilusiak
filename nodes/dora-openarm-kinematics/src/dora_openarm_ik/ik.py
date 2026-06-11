@@ -319,19 +319,21 @@ def _run(args: argparse.Namespace) -> None:
         # Only send positions for arms with active triggers (V1 safety)
         if trigger_active["right"]:
             pos_right = result[:8].copy()
-            if args.gripper_type == "v1":
-                # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
-                pos_right = _smooth_position_safe(pos_right, actual_robot_pos["right"], prev_cmd["right"], frames_since_activation["right"])
-                prev_cmd["right"] = pos_right.copy()
-                frames_since_activation["right"] += 1
+            # V2 APPROACH: No smoothing - let IK damping and motor controllers handle it
+            # if args.gripper_type == "v1":
+            #     # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
+            #     pos_right = _smooth_position_safe(pos_right, actual_robot_pos["right"], prev_cmd["right"], frames_since_activation["right"])
+            #     prev_cmd["right"] = pos_right.copy()
+            #     frames_since_activation["right"] += 1
             node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
         if trigger_active["left"]:
             pos_left = result[8:16].copy()
-            if args.gripper_type == "v1":
-                # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
-                pos_left = _smooth_position_safe(pos_left, actual_robot_pos["left"], prev_cmd["left"], frames_since_activation["left"])
-                prev_cmd["left"] = pos_left.copy()
-                frames_since_activation["left"] += 1
+            # V2 APPROACH: No smoothing - let IK damping and motor controllers handle it
+            # if args.gripper_type == "v1":
+            #     # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
+            #     pos_left = _smooth_position_safe(pos_left, actual_robot_pos["left"], prev_cmd["left"], frames_since_activation["left"])
+            #     prev_cmd["left"] = pos_left.copy()
+            #     frames_since_activation["left"] += 1
             node.send_output("position_left", pa.array(pos_left, type=pa.float32()), ts)
 
 
