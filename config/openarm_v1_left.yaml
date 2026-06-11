@@ -59,22 +59,23 @@ control_gains:
   kps: [70.0, 70.0, 70.0, 15.0, 10.0, 10.0, 10.0, 10.0]
   kds: [2.75, 2.5, 2.0, 1.0, 0.7, 0.6, 0.5, 0.2]
 
-# Start configuration - all joints at zero (LeRobot calibration)
+# Start configuration - compensate for joint offsets so physical position is zero (arms down)
+# Physical zero = commanded - offset, so commanded = -offset to get physical zero
 start:
   moves:
     - name: "initial"
       position:
-        right_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        right_arm: [0.0, 0.506145, -1.570796, 1.745329, 0.0, -0.331612, 1.570796, 0.0]
+        left_arm: [0.0, -0.506145, 1.570796, 1.745329, 0.0, 0.331612, -1.570796, 0.0]
       hz: 50
       duration: 2
 
-# Stop configuration - all joints at zero
+# Stop configuration - same as start (arms down)
 stop:
   moves:
     - name: "initial"
       position:
-        right_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        right_arm: [0.0, 0.506145, -1.570796, 1.745329, 0.0, -0.331612, 1.570796, 0.0]
+        left_arm: [0.0, -0.506145, 1.570796, 1.745329, 0.0, 0.331612, -1.570796, 0.0]
       hz: 50
       duration: 2
