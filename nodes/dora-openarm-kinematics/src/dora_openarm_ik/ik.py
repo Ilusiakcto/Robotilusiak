@@ -78,30 +78,49 @@ _V1_ZERO_POSITION = {
 # Lower = smoother but slower tracking, Higher = faster but can fault
 # At 50Hz, 0.1 rad/step = 5 rad/s max velocity
 _MAX_DELTA_PER_STEP = np.array([
-    0.15,  # J1 - shoulder
-    0.15,  # J2 - shoulder  
-    0.15,  # J3 - elbow
-    0.08,  # J4 - elbow (most sensitive, prone to faulting)
-    0.2,   # J5 - wrist
-    0.2,   # J6 - wrist
-    0.2,   # J7 - wrist
+    0.12,  # J1 - shoulder
+    0.12,  # J2 - shoulder  
+    0.12,  # J3 - elbow
+    0.06,  # J4 - elbow (most sensitive, prone to faulting)
+    0.15,  # J5 - wrist
+    0.15,  # J6 - wrist
+    0.15,  # J7 - wrist
     0.01,  # J8 - gripper (meters for V1)
 ], dtype=np.float32)
 
+# Max allowed position error before we snap back to actual (prevents drift fault)
+_MAX_POSITION_ERROR = np.array([
+    0.3,   # J1
+    0.3,   # J2
+    0.3,   # J3
+    0.15,  # J4 - very tight to prevent fault
+    0.4,   # J5
+    0.4,   # J6
+    0.4,   # J7
+    0.02,  # J8
+], dtype=np.float32)
 
-def _smooth_position(target_pos: np.ndarray, prev_cmd: np.ndarray) -> np.ndarray:
-    """Rate-limit position changes from previous command for smooth motion.
+
+def _smooth_position_hybrid(target_pos: np.ndarray, prev_cmd: np.ndarray, actual_pos: np.ndarray) -> np.ndarray:
+    """Hybrid smoothing: smooth from prev_cmd but clamp to stay near actual position.
     
-    We smooth from the PREVIOUS COMMAND, not actual position, for fluid motion.
-    The sync-on-activation ensures we start from actual position (no initial jump).
+    This prevents position error accumulation that causes motor faults while
+    maintaining smooth motion.
     """
-    if prev_cmd is None:
-        return target_pos
+    if prev_cmd is None or actual_pos is None:
+        return target_pos if actual_pos is None else actual_pos.copy()
     
+    # Step 1: Rate-limit from previous command (for smooth motion)
     delta = target_pos - prev_cmd
-    # Clamp each joint's delta to max allowed
     clamped_delta = np.clip(delta, -_MAX_DELTA_PER_STEP, _MAX_DELTA_PER_STEP)
-    return prev_cmd + clamped_delta
+    smoothed = prev_cmd + clamped_delta
+    
+    # Step 2: Clamp to stay within max error of actual position (prevents fault)
+    error = smoothed - actual_pos
+    clamped_error = np.clip(error, -_MAX_POSITION_ERROR, _MAX_POSITION_ERROR)
+    safe_pos = actual_pos + clamped_error
+    
+    return safe_pos
 
 
 def _run(args: argparse.Namespace) -> None:
@@ -294,15 +313,15 @@ def _run(args: argparse.Namespace) -> None:
         if trigger_active["right"]:
             pos_right = result[:8].copy()
             if args.gripper_type == "v1":
-                # Smooth from previous command for fluid motion
-                pos_right = _smooth_position(pos_right, prev_cmd["right"])
+                # Hybrid smoothing: smooth from prev_cmd but clamp to actual to prevent fault
+                pos_right = _smooth_position_hybrid(pos_right, prev_cmd["right"], actual_robot_pos["right"])
                 prev_cmd["right"] = pos_right.copy()
             node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
         if trigger_active["left"]:
             pos_left = result[8:16].copy()
             if args.gripper_type == "v1":
-                # Smooth from previous command for fluid motion
-                pos_left = _smooth_position(pos_left, prev_cmd["left"])
+                # Hybrid smoothing: smooth from prev_cmd but clamp to actual to prevent fault
+                pos_left = _smooth_position_hybrid(pos_left, prev_cmd["left"], actual_robot_pos["left"])
                 prev_cmd["left"] = pos_left.copy()
             node.send_output("position_left", pa.array(pos_left, type=pa.float32()), ts)
 
