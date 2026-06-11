@@ -89,19 +89,19 @@ _MAX_DELTA_PER_STEP = np.array([
 ], dtype=np.float32)
 
 
-def _smooth_position(target_pos: np.ndarray, actual_pos: np.ndarray) -> np.ndarray:
-    """Rate-limit position changes FROM ACTUAL ROBOT POSITION to prevent motor faults.
+def _smooth_position(target_pos: np.ndarray, prev_cmd: np.ndarray) -> np.ndarray:
+    """Rate-limit position changes from previous command for smooth motion.
     
-    Critical: We smooth from the ACTUAL robot position, not from IK's belief.
-    This ensures we never command a position far from where the robot actually is.
+    We smooth from the PREVIOUS COMMAND, not actual position, for fluid motion.
+    The sync-on-activation ensures we start from actual position (no initial jump).
     """
-    if actual_pos is None:
+    if prev_cmd is None:
         return target_pos
     
-    delta = target_pos - actual_pos
+    delta = target_pos - prev_cmd
     # Clamp each joint's delta to max allowed
     clamped_delta = np.clip(delta, -_MAX_DELTA_PER_STEP, _MAX_DELTA_PER_STEP)
-    return actual_pos + clamped_delta
+    return prev_cmd + clamped_delta
 
 
 def _run(args: argparse.Namespace) -> None:
@@ -148,8 +148,12 @@ def _run(args: argparse.Namespace) -> None:
     trigger_values = {"right": 0.0, "left": 0.0}
     
     # CRITICAL: Track actual robot position from state feedback
-    # This is used for closed-loop control to prevent drift
+    # Used for sync-on-activation to prevent initial jump
     actual_robot_pos = {"right": None, "left": None}
+    
+    # Track previous commanded position for smooth motion
+    # Smoothing from prev_cmd (not actual) gives fluid motion
+    prev_cmd = {"right": None, "left": None}
     
     # Track if we've synced IK to actual robot position on first activation
     synced_on_activation = {"right": False, "left": False}
@@ -229,7 +233,7 @@ def _run(args: argparse.Namespace) -> None:
             trigger_active["right"] = tval > trigger_threshold
             kin.set_gripper("right", gripper_fn(tval, "right"))
             
-            # CRITICAL: On first activation, sync IK to actual robot position
+            # CRITICAL: On first activation, sync IK and prev_cmd to actual robot position
             if trigger_active["right"] and not was_active:
                 if actual_robot_pos["right"] is not None and not synced_on_activation["right"]:
                     # Build full state array for sync (right + left)
@@ -237,11 +241,14 @@ def _run(args: argparse.Namespace) -> None:
                     left_pos = actual_robot_pos["left"] if actual_robot_pos["left"] is not None else np.zeros(8, dtype=np.float32)
                     full_state = np.concatenate([right_pos, left_pos])
                     kin.sync(full_state)
+                    # Initialize prev_cmd from actual position for smooth start
+                    prev_cmd["right"] = right_pos.copy()
                     synced_on_activation["right"] = True
                     print(f"[ik] RIGHT ARM ACTIVATED: Synced IK to actual robot position. J4={right_pos[3]:.3f}")
             elif not trigger_active["right"] and was_active:
-                # Reset sync flag when trigger released
+                # Reset sync flag and prev_cmd when trigger released
                 synced_on_activation["right"] = False
+                prev_cmd["right"] = None
                 print(f"[ik] RIGHT ARM DEACTIVATED")
             continue
 
@@ -252,7 +259,7 @@ def _run(args: argparse.Namespace) -> None:
             trigger_active["left"] = tval > trigger_threshold
             kin.set_gripper("left", gripper_fn(tval, "left"))
             
-            # CRITICAL: On first activation, sync IK to actual robot position
+            # CRITICAL: On first activation, sync IK and prev_cmd to actual robot position
             if trigger_active["left"] and not was_active:
                 if actual_robot_pos["left"] is not None and not synced_on_activation["left"]:
                     # Build full state array for sync (right + left)
@@ -260,11 +267,14 @@ def _run(args: argparse.Namespace) -> None:
                     left_pos = actual_robot_pos["left"]
                     full_state = np.concatenate([right_pos, left_pos])
                     kin.sync(full_state)
+                    # Initialize prev_cmd from actual position for smooth start
+                    prev_cmd["left"] = left_pos.copy()
                     synced_on_activation["left"] = True
                     print(f"[ik] LEFT ARM ACTIVATED: Synced IK to actual robot position. J4={left_pos[3]:.3f}")
             elif not trigger_active["left"] and was_active:
-                # Reset sync flag when trigger released
+                # Reset sync flag and prev_cmd when trigger released
                 synced_on_activation["left"] = False
+                prev_cmd["left"] = None
                 print(f"[ik] LEFT ARM DEACTIVATED")
             continue
 
@@ -284,15 +294,16 @@ def _run(args: argparse.Namespace) -> None:
         if trigger_active["right"]:
             pos_right = result[:8].copy()
             if args.gripper_type == "v1":
-                # CRITICAL: Smooth from ACTUAL robot position, not IK's belief
-                # This prevents commanding positions far from where the robot actually is
-                pos_right = _smooth_position(pos_right, actual_robot_pos["right"])
+                # Smooth from previous command for fluid motion
+                pos_right = _smooth_position(pos_right, prev_cmd["right"])
+                prev_cmd["right"] = pos_right.copy()
             node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
         if trigger_active["left"]:
             pos_left = result[8:16].copy()
             if args.gripper_type == "v1":
-                # CRITICAL: Smooth from ACTUAL robot position, not IK's belief
-                pos_left = _smooth_position(pos_left, actual_robot_pos["left"])
+                # Smooth from previous command for fluid motion
+                pos_left = _smooth_position(pos_left, prev_cmd["left"])
+                prev_cmd["left"] = pos_left.copy()
             node.send_output("position_left", pa.array(pos_left, type=pa.float32()), ts)
 
 
