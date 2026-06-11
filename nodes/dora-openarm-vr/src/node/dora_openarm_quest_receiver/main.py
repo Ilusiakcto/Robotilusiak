@@ -51,9 +51,9 @@ Meta Quest UDP pose receiver — specification
      r_rel = R_ref_inv * r_ctrl             (orientation relative to HMD)
 
 [4. Robot Workspace Mapping]
-- p_out = R_FRAME * p_rel + FRAME_OFFSET_NECK
+- p_out = R_FRAME * p_rel + FRAME_OFFSET
 - r_out = R_FRAME * r_rel * R_FIX
-    * R_FIX = Rot_z(90)
+    * R_FIX = Rot_z(90) for V2, Identity for V1
 """
 
 import argparse
