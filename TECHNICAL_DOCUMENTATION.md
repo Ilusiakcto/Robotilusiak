@@ -165,9 +165,9 @@ UDP_RELAY_REMOTE_PORT=5006
 
 ---
 
-## 4. Current Issues (Unresolved)
+## 4. J4 Motor Fault Issue - RESOLVED
 
-### 4.1 J4 (Elbow) Motor Fault - CRITICAL
+### 4.1 Problem Description
 
 **Symptom:** J4 motor LED blinks red after a few seconds of VR teleoperation.
 
@@ -178,25 +178,65 @@ UDP_RELAY_REMOTE_PORT=5006
 - J4 **always faults** during VR teleoperation
 - Fault occurs within seconds of starting VR control
 
-**Root Cause Analysis:**
-- Manual teleoperation: Leader arm movements are naturally smooth, position errors are small
-- VR teleoperation: IK solver can output positions far from current position
-- Large position error × high Kp = excessive torque demand → overload fault
+### 4.2 Root Cause: Open-Loop IK Control
 
-**Attempted Fixes:**
-| Fix | Result |
-|-----|--------|
-| Reduced J4 Kp from 60 to 15 | Still faults |
-| Reduced J4 Kd from 2.0 to 1.0 | Still faults |
-| Reduced IK dt from 0.1 to 0.02 | Still faults |
-| Added position rate-limiting (0.08 rad/step for J4) | Still faults |
-| Tightened J4 joint limits | Reverted - limited range of motion |
+The IK node was operating **completely open-loop** — it had no feedback from the actual robot position.
 
-**Hypothesis:**
-The IK solver may be commanding positions that require the elbow to move through configurations that demand high torque, even with smoothing. The fundamental issue may be in how the IK solver plans trajectories.
+```
+BEFORE (broken):
+┌─────────────┐     ┌─────────┐     ┌──────────┐
+│ VR Receiver │────▶│   IK    │────▶│ Follower │
+└─────────────┘     └─────────┘     └──────────┘
+                         │               │
+                    (no feedback) ◀──────┘ state output goes nowhere
+```
+
+**Why this caused faults:**
+1. IK solver's internal MuJoCo model starts at position A
+2. IK outputs position B, robot moves toward B but ends up at C (dynamics, gravity, friction)
+3. IK still thinks robot is at B, outputs D based on that belief
+4. Position error accumulates: actual robot drifts from IK's belief
+5. Eventually `Kp × (commanded - actual)` exceeds motor torque limit → **OVERLOAD FAULT**
+
+**Why manual teleoperation works:** The leader arm physically constrains motion, so position commands are always close to actual position (small error, no drift).
+
+### 4.3 Solution: Closed-Loop IK Control
+
+Wire robot state feedback back to the IK node:
+
+```
+AFTER (fixed):
+┌─────────────┐     ┌─────────┐     ┌──────────┐
+│ VR Receiver │────▶│   IK    │────▶│ Follower │
+└─────────────┘     └─────────┘     └──────────┘
+                         ▲               │
+                         └───────────────┘ state_right / state_left
+```
+
+**Implementation (3 layers):**
+
+1. **Dataflow change:** Added `state_right: follower-right/state` and `state_left: follower-left/state` inputs to IK node
+
+2. **Sync on activation:** When trigger is first pressed, IK syncs its internal MuJoCo state to the actual robot position before outputting commands
+
+3. **Smooth from actual position:** Rate-limiting now uses the **actual robot position** (from feedback), not IK's belief
+
+**Key code changes:**
+```python
+# IK now receives actual robot state
+actual_robot_pos = {"right": None, "left": None}
+
+# On trigger activation, sync IK to actual robot
+if trigger_active["right"] and not was_active:
+    if actual_robot_pos["right"] is not None:
+        kin.sync(full_state)  # Sync IK's MuJoCo model
+
+# Smooth from ACTUAL position, not IK's belief
+pos_right = _smooth_position(ik_result, actual_robot_pos["right"])
+```
 
 
-### 4.2 Gripper Unresponsiveness
+### 4.4 Gripper Unresponsiveness (Still Investigating)
 
 **Symptom:** Gripper does not open/close in response to VR trigger.
 

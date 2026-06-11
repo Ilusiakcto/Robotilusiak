@@ -90,6 +90,7 @@ nodes:
     # The XML has V1 joint limits (J2: ±100°) - different from V2!
     # dt=0.02 (smaller steps to prevent sudden jumps that fault J4)
     # damping=0.2 (more conservative IK)
+    # CRITICAL: state_right/state_left provide closed-loop feedback to prevent drift
     args: "--mode bimanual --xml models/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.02 --damping 0.2 --posture-cost 0.01 --lm-damping 0.01"
     inputs:
       tick: quittable-tick-leader/tick
@@ -97,6 +98,8 @@ nodes:
       target_left: udp-receiver/pose_left
       trigger_right: udp-receiver/trigger_right
       trigger_left: udp-receiver/trigger_left
+      state_right: follower-right/state
+      state_left: follower-left/state
     outputs:
       - position_left
       - position_right

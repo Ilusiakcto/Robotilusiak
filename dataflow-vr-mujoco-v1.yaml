@@ -75,6 +75,7 @@ nodes:
     build: pip install -e nodes/dora-openarm-kinematics
     path: dora-openarm-ik
     # v1 requires specifying the XML, EE frame names, and gripper type (slide joint)
+    # state_right/state_left provide closed-loop feedback from MuJoCo sim
     args: "--mode bimanual --xml models/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.02 --damping 0.2 --posture-cost 0.01 --lm-damping 0.01"
     inputs:
       tick: quittable-tick-leader/tick
@@ -82,6 +83,8 @@ nodes:
       target_left: udp-receiver/pose_left
       trigger_right: udp-receiver/trigger_right
       trigger_left: udp-receiver/trigger_left
+      state_right: mujoco-v1/arm_right_observation
+      state_left: mujoco-v1/arm_left_observation
     outputs:
       - position_left
       - position_right
