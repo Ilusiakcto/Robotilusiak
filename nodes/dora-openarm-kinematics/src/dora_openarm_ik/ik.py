@@ -78,49 +78,52 @@ _V1_ZERO_POSITION = {
 # Lower = smoother but slower tracking, Higher = faster but can fault
 # At 50Hz, 0.1 rad/step = 5 rad/s max velocity
 _MAX_DELTA_PER_STEP = np.array([
-    0.12,  # J1 - shoulder
-    0.12,  # J2 - shoulder  
-    0.12,  # J3 - elbow
-    0.06,  # J4 - elbow (most sensitive, prone to faulting)
-    0.15,  # J5 - wrist
-    0.15,  # J6 - wrist
-    0.15,  # J7 - wrist
-    0.01,  # J8 - gripper (meters for V1)
+    0.08,  # J1 - shoulder
+    0.08,  # J2 - shoulder  
+    0.08,  # J3 - elbow
+    0.04,  # J4 - elbow (most sensitive, prone to faulting)
+    0.10,  # J5 - wrist
+    0.10,  # J6 - wrist
+    0.10,  # J7 - wrist
+    0.005, # J8 - gripper (meters for V1)
 ], dtype=np.float32)
 
-# Max allowed position error before we snap back to actual (prevents drift fault)
-_MAX_POSITION_ERROR = np.array([
-    0.3,   # J1
-    0.3,   # J2
-    0.3,   # J3
-    0.15,  # J4 - very tight to prevent fault
-    0.4,   # J5
-    0.4,   # J6
-    0.4,   # J7
-    0.02,  # J8
+# VERY conservative limits for ramp-up period after activation
+_RAMPUP_DELTA_PER_STEP = np.array([
+    0.02,  # J1
+    0.02,  # J2
+    0.02,  # J3
+    0.01,  # J4 - extra conservative
+    0.03,  # J5
+    0.03,  # J6
+    0.03,  # J7
+    0.002, # J8
 ], dtype=np.float32)
 
+# Number of frames for ramp-up period after activation
+_RAMPUP_FRAMES = 25  # ~0.5 seconds at 50Hz
 
-def _smooth_position_hybrid(target_pos: np.ndarray, prev_cmd: np.ndarray, actual_pos: np.ndarray) -> np.ndarray:
-    """Hybrid smoothing: smooth from prev_cmd but clamp to stay near actual position.
+
+def _smooth_position_safe(target_pos: np.ndarray, actual_pos: np.ndarray, frames_since_activation: int) -> np.ndarray:
+    """Safe smoothing: always smooth from ACTUAL position with ramp-up after activation.
     
-    This prevents position error accumulation that causes motor faults while
-    maintaining smooth motion.
+    This completely prevents position drift by always commanding relative to actual.
+    Uses conservative limits during ramp-up period after trigger activation.
     """
-    if prev_cmd is None or actual_pos is None:
-        return target_pos if actual_pos is None else actual_pos.copy()
+    if actual_pos is None:
+        # NEVER output without actual position feedback
+        return None
     
-    # Step 1: Rate-limit from previous command (for smooth motion)
-    delta = target_pos - prev_cmd
-    clamped_delta = np.clip(delta, -_MAX_DELTA_PER_STEP, _MAX_DELTA_PER_STEP)
-    smoothed = prev_cmd + clamped_delta
+    # Use conservative limits during ramp-up, normal limits after
+    if frames_since_activation < _RAMPUP_FRAMES:
+        max_delta = _RAMPUP_DELTA_PER_STEP
+    else:
+        max_delta = _MAX_DELTA_PER_STEP
     
-    # Step 2: Clamp to stay within max error of actual position (prevents fault)
-    error = smoothed - actual_pos
-    clamped_error = np.clip(error, -_MAX_POSITION_ERROR, _MAX_POSITION_ERROR)
-    safe_pos = actual_pos + clamped_error
-    
-    return safe_pos
+    # Always smooth from ACTUAL position - no drift possible
+    delta = target_pos - actual_pos
+    clamped_delta = np.clip(delta, -max_delta, max_delta)
+    return actual_pos + clamped_delta
 
 
 def _run(args: argparse.Namespace) -> None:
@@ -167,12 +170,10 @@ def _run(args: argparse.Namespace) -> None:
     trigger_values = {"right": 0.0, "left": 0.0}
     
     # CRITICAL: Track actual robot position from state feedback
-    # Used for sync-on-activation to prevent initial jump
     actual_robot_pos = {"right": None, "left": None}
     
-    # Track previous commanded position for smooth motion
-    # Smoothing from prev_cmd (not actual) gives fluid motion
-    prev_cmd = {"right": None, "left": None}
+    # Track frames since activation for ramp-up period
+    frames_since_activation = {"right": 0, "left": 0}
     
     # Track if we've synced IK to actual robot position on first activation
     synced_on_activation = {"right": False, "left": False}
@@ -252,7 +253,7 @@ def _run(args: argparse.Namespace) -> None:
             trigger_active["right"] = tval > trigger_threshold
             kin.set_gripper("right", gripper_fn(tval, "right"))
             
-            # CRITICAL: On first activation, sync IK and prev_cmd to actual robot position
+            # CRITICAL: On first activation, sync IK to actual robot position
             if trigger_active["right"] and not was_active:
                 if actual_robot_pos["right"] is not None and not synced_on_activation["right"]:
                     # Build full state array for sync (right + left)
@@ -260,14 +261,14 @@ def _run(args: argparse.Namespace) -> None:
                     left_pos = actual_robot_pos["left"] if actual_robot_pos["left"] is not None else np.zeros(8, dtype=np.float32)
                     full_state = np.concatenate([right_pos, left_pos])
                     kin.sync(full_state)
-                    # Initialize prev_cmd from actual position for smooth start
-                    prev_cmd["right"] = right_pos.copy()
+                    # Reset frame counter for ramp-up period
+                    frames_since_activation["right"] = 0
                     synced_on_activation["right"] = True
-                    print(f"[ik] RIGHT ARM ACTIVATED: Synced IK to actual robot position. J4={right_pos[3]:.3f}")
+                    print(f"[ik] RIGHT ARM ACTIVATED: Synced IK, starting ramp-up. J4={right_pos[3]:.3f}")
             elif not trigger_active["right"] and was_active:
-                # Reset sync flag and prev_cmd when trigger released
+                # Reset sync flag when trigger released
                 synced_on_activation["right"] = False
-                prev_cmd["right"] = None
+                frames_since_activation["right"] = 0
                 print(f"[ik] RIGHT ARM DEACTIVATED")
             continue
 
@@ -278,7 +279,7 @@ def _run(args: argparse.Namespace) -> None:
             trigger_active["left"] = tval > trigger_threshold
             kin.set_gripper("left", gripper_fn(tval, "left"))
             
-            # CRITICAL: On first activation, sync IK and prev_cmd to actual robot position
+            # CRITICAL: On first activation, sync IK to actual robot position
             if trigger_active["left"] and not was_active:
                 if actual_robot_pos["left"] is not None and not synced_on_activation["left"]:
                     # Build full state array for sync (right + left)
@@ -286,14 +287,14 @@ def _run(args: argparse.Namespace) -> None:
                     left_pos = actual_robot_pos["left"]
                     full_state = np.concatenate([right_pos, left_pos])
                     kin.sync(full_state)
-                    # Initialize prev_cmd from actual position for smooth start
-                    prev_cmd["left"] = left_pos.copy()
+                    # Reset frame counter for ramp-up period
+                    frames_since_activation["left"] = 0
                     synced_on_activation["left"] = True
-                    print(f"[ik] LEFT ARM ACTIVATED: Synced IK to actual robot position. J4={left_pos[3]:.3f}")
+                    print(f"[ik] LEFT ARM ACTIVATED: Synced IK, starting ramp-up. J4={left_pos[3]:.3f}")
             elif not trigger_active["left"] and was_active:
-                # Reset sync flag and prev_cmd when trigger released
+                # Reset sync flag when trigger released
                 synced_on_activation["left"] = False
-                prev_cmd["left"] = None
+                frames_since_activation["left"] = 0
                 print(f"[ik] LEFT ARM DEACTIVATED")
             continue
 
@@ -313,16 +314,20 @@ def _run(args: argparse.Namespace) -> None:
         if trigger_active["right"]:
             pos_right = result[:8].copy()
             if args.gripper_type == "v1":
-                # Hybrid smoothing: smooth from prev_cmd but clamp to actual to prevent fault
-                pos_right = _smooth_position_hybrid(pos_right, prev_cmd["right"], actual_robot_pos["right"])
-                prev_cmd["right"] = pos_right.copy()
+                # Safe smoothing: always from actual position with ramp-up
+                pos_right = _smooth_position_safe(pos_right, actual_robot_pos["right"], frames_since_activation["right"])
+                if pos_right is None:
+                    continue  # Skip if no actual position feedback
+                frames_since_activation["right"] += 1
             node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
         if trigger_active["left"]:
             pos_left = result[8:16].copy()
             if args.gripper_type == "v1":
-                # Hybrid smoothing: smooth from prev_cmd but clamp to actual to prevent fault
-                pos_left = _smooth_position_hybrid(pos_left, prev_cmd["left"], actual_robot_pos["left"])
-                prev_cmd["left"] = pos_left.copy()
+                # Safe smoothing: always from actual position with ramp-up
+                pos_left = _smooth_position_safe(pos_left, actual_robot_pos["left"], frames_since_activation["left"])
+                if pos_left is None:
+                    continue  # Skip if no actual position feedback
+                frames_since_activation["left"] += 1
             node.send_output("position_left", pa.array(pos_left, type=pa.float32()), ts)
 
 
