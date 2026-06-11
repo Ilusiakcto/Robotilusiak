@@ -105,7 +105,9 @@ VALID_INVALID = 2
 _VALID_NAMES  = {VALID_OK: "OK", VALID_STALE: "STALE", VALID_INVALID: "INVALID"}
 
 _R_FRAME_V2   = Rotation.from_matrix(_FRAME_ROT_V2)
-_R_FRAME_V1   = Rotation.from_matrix(_FRAME_ROT_V1)
+# V1: Use identity for orientation - controller rotation maps directly to gripper rotation
+# The position frame (_FRAME_ROT_V1) is ONLY for position, not orientation
+_R_FRAME_V1   = Rotation.identity()
 _IDENTITY_REF = {"x": 0.0, "y": 0.0, "z": 0.0, "qx": 0.0, "qy": 0.0, "qz": 0.0, "qw": 1.0}
 
 
@@ -141,10 +143,9 @@ class QuestPoseProcessor:
 
         # Rotation fix to align controller orientation with gripper
         # V2: 90° Z rotation (original)
-        # V1: -90° Z rotation to compensate for J7 offset (-90° in config)
-        #     The V1 gripper is physically mounted 90° different from V2
+        # V1: Identity - direct mapping, controller rotation = gripper rotation
         if self.robot_version == "v1":
-            r_fix = Rotation.from_euler("z", -90, degrees=True)
+            r_fix = Rotation.identity()
         else:
             r_fix = Rotation.from_euler("z", 90, degrees=True)
 
