@@ -104,26 +104,29 @@ _RAMPUP_DELTA_PER_STEP = np.array([
 _RAMPUP_FRAMES = 25  # ~0.5 seconds at 50Hz
 
 
-def _smooth_position_safe(target_pos: np.ndarray, actual_pos: np.ndarray, frames_since_activation: int) -> np.ndarray:
-    """Safe smoothing: always smooth from ACTUAL position with ramp-up after activation.
+def _smooth_position_safe(target_pos: np.ndarray, actual_pos: np.ndarray, prev_cmd: np.ndarray, frames_since_activation: int) -> np.ndarray:
+    """Safe smoothing: prefer ACTUAL position, fallback to prev_cmd if no feedback.
     
-    This completely prevents position drift by always commanding relative to actual.
     Uses conservative limits during ramp-up period after trigger activation.
     """
-    if actual_pos is None:
-        # NEVER output without actual position feedback
-        return None
-    
     # Use conservative limits during ramp-up, normal limits after
     if frames_since_activation < _RAMPUP_FRAMES:
         max_delta = _RAMPUP_DELTA_PER_STEP
     else:
         max_delta = _MAX_DELTA_PER_STEP
     
-    # Always smooth from ACTUAL position - no drift possible
-    delta = target_pos - actual_pos
+    # Prefer actual position, fallback to prev_cmd
+    if actual_pos is not None:
+        base_pos = actual_pos
+    elif prev_cmd is not None:
+        base_pos = prev_cmd
+    else:
+        # First command ever - just return target (will be smoothed next frame)
+        return target_pos
+    
+    delta = target_pos - base_pos
     clamped_delta = np.clip(delta, -max_delta, max_delta)
-    return actual_pos + clamped_delta
+    return base_pos + clamped_delta
 
 
 def _run(args: argparse.Namespace) -> None:
@@ -169,8 +172,11 @@ def _run(args: argparse.Namespace) -> None:
     trigger_active = {"right": False, "left": False}
     trigger_values = {"right": 0.0, "left": 0.0}
     
-    # CRITICAL: Track actual robot position from state feedback
+    # Track actual robot position from state feedback
     actual_robot_pos = {"right": None, "left": None}
+    
+    # Track previous commanded position (fallback if no state feedback)
+    prev_cmd = {"right": None, "left": None}
     
     # Track frames since activation for ramp-up period
     frames_since_activation = {"right": 0, "left": 0}
@@ -314,19 +320,17 @@ def _run(args: argparse.Namespace) -> None:
         if trigger_active["right"]:
             pos_right = result[:8].copy()
             if args.gripper_type == "v1":
-                # Safe smoothing: always from actual position with ramp-up
-                pos_right = _smooth_position_safe(pos_right, actual_robot_pos["right"], frames_since_activation["right"])
-                if pos_right is None:
-                    continue  # Skip if no actual position feedback
+                # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
+                pos_right = _smooth_position_safe(pos_right, actual_robot_pos["right"], prev_cmd["right"], frames_since_activation["right"])
+                prev_cmd["right"] = pos_right.copy()
                 frames_since_activation["right"] += 1
             node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
         if trigger_active["left"]:
             pos_left = result[8:16].copy()
             if args.gripper_type == "v1":
-                # Safe smoothing: always from actual position with ramp-up
-                pos_left = _smooth_position_safe(pos_left, actual_robot_pos["left"], frames_since_activation["left"])
-                if pos_left is None:
-                    continue  # Skip if no actual position feedback
+                # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
+                pos_left = _smooth_position_safe(pos_left, actual_robot_pos["left"], prev_cmd["left"], frames_since_activation["left"])
+                prev_cmd["left"] = pos_left.copy()
                 frames_since_activation["left"] += 1
             node.send_output("position_left", pa.array(pos_left, type=pa.float32()), ts)
 
