@@ -141,9 +141,10 @@ class QuestPoseProcessor:
 
         # Rotation fix to align controller orientation with gripper
         # V2: 90° Z rotation (original)
-        # V1: No rotation needed for direct mapping
+        # V1: -90° Z rotation to compensate for J7 offset (-90° in config)
+        #     The V1 gripper is physically mounted 90° different from V2
         if self.robot_version == "v1":
-            r_fix = Rotation.identity()
+            r_fix = Rotation.from_euler("z", -90, degrees=True)
         else:
             r_fix = Rotation.from_euler("z", 90, degrees=True)
 
