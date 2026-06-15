@@ -80,12 +80,18 @@ _FRAME_ROT_V2: np.ndarray = np.array([
 ], dtype=np.float64)
 
 # V1 frame rotation - DIRECT mapping (user IS the robot)
-# User moves forward → robot moves forward (same direction)
-# VR (after LH->RH flip): X=right, Y=up, Z=backward (user's forward is -Z)
+# User moves their arm right → robot arm moves right (same direction)
+# VR (after LH->RH flip): X=right, Y=up, Z=backward
 # Robot world: X=forward, Y=left, Z=up
+# 
+# KEY: The reference frame rotation already handles user facing direction.
+# This matrix only needs to map VR axes to robot axes:
+#   - VR X (right) → Robot -Y (right, since robot Y is left)
+#   - VR Y (up) → Robot Z (up)
+#   - VR Z (back) → Robot -X (back, since robot X is forward)
 _FRAME_ROT_V1: np.ndarray = np.array([
-    [  0.,   0.,  -1.],  # robot X (forward) = -VR Z (user forward)
-    [ -1.,   0.,   0.],  # robot Y (left)    = -VR X (user right → robot right = -Y)
+    [  0.,   0.,  -1.],  # robot X (forward) = -VR Z (forward)
+    [ -1.,   0.,   0.],  # robot Y (left)    = -VR X (right → -Y is right)
     [  0.,   1.,   0.],  # robot Z (up)      = +VR Y (up)
 ], dtype=np.float64)
 
@@ -151,7 +157,17 @@ class QuestPoseProcessor:
 
         def _rectify(raw: dict) -> np.ndarray:
             p, r = parse_lh_to_rh(raw)
-            p_rel = active_r_ref_inv.apply(p - active_p_ref)
+            
+            # V1: Use WORLD-relative position (don't rotate into head frame)
+            # This ensures: user moves right in world → robot moves right
+            # V2: Use HEAD-relative position (original behavior)
+            if self.robot_version == "v1":
+                # Only subtract reference position, keep world orientation
+                p_rel = p - active_p_ref
+            else:
+                # Rotate into head frame (original NECK mode)
+                p_rel = active_r_ref_inv.apply(p - active_p_ref)
+            
             r_rel = active_r_ref_inv * r
             p_out = self._frame_rot @ p_rel + self.frame_offset
             r_out = self._r_frame * r_rel * r_fix
