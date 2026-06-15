@@ -88,9 +88,8 @@ nodes:
     path: dora-openarm-ik
     # V1 requires specifying the XML, EE frame names, and gripper type (slide joint)
     # The XML has V1 joint limits (J2: ±100°) - different from V2!
-    # TESTING V2 APPROACH: dt=0.1, damping=0.1 (same as V2 - no extra smoothing)
-    # OLD V1 PARAMS (commented): --dt 0.02 --damping 0.2
-    args: "--mode bimanual --xml models/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.1 --damping 0.1 --posture-cost 0.01 --lm-damping 0.01"
+    # Using safer V1 params: dt=0.02, damping=0.2 (smaller steps, more conservative)
+    args: "--mode bimanual --xml models/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.02 --damping 0.2 --posture-cost 0.01 --lm-damping 0.01"
     inputs:
       tick: quittable-tick-leader/tick
       target_right: udp-receiver/pose_right
@@ -115,7 +114,9 @@ nodes:
     # IK node handles trigger gating, no align-trigger needed here
     args: "--side right --config config/openarm_v1_right.yaml"
     inputs:
-      request_state: ik/position_right
+      # FIX: Use timer for request_state to break circular dependency
+      # This ensures state feedback is available BEFORE first trigger press
+      request_state: dora/timer/millis/50
       move_position: ik/position_right
     outputs:
       - state
@@ -128,7 +129,9 @@ nodes:
     # IK node handles trigger gating, no align-trigger needed here
     args: "--side left --config config/openarm_v1_left.yaml"
     inputs:
-      request_state: ik/position_left
+      # FIX: Use timer for request_state to break circular dependency
+      # This ensures state feedback is available BEFORE first trigger press
+      request_state: dora/timer/millis/50
       move_position: ik/position_left
     outputs:
       - state

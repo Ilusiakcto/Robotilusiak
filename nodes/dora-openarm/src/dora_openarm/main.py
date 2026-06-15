@@ -132,6 +132,7 @@ def main():
 
     initialized = False
     align_state = AlignState()
+    first_command_logged = False  # VERIFICATION: track if we've logged first command
     for event in node:
         if event["type"] != "INPUT":
             continue
@@ -169,6 +170,19 @@ def main():
             else:
                 new_position = value
                 # other_arm_position = None
+            
+            # VERIFICATION: Log first command and current state to confirm hypothesis
+            if not first_command_logged:
+                current_state = arm.fetch_state(refresh=True)
+                pos_array = np.array(new_position, dtype=np.float32)
+                print(f"\n{'='*60}")
+                print(f"[{name}] FIRST MOVE COMMAND RECEIVED")
+                print(f"[{name}] Current robot state (qpos): {current_state['qpos']}")
+                print(f"[{name}] First command received:      {pos_array}")
+                print(f"[{name}] Expected offset values:      [0, -0.506, +1.571, -1.745, 0, +0.332, -1.571, 0]")
+                print(f"[{name}] If command ≈ offset values, hypothesis CONFIRMED!")
+                print(f"{'='*60}\n")
+                first_command_logged = True
             if not initialized:
                 initialized = _align(
                     arm,

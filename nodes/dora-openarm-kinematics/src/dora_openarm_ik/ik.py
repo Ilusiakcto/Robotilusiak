@@ -66,12 +66,13 @@ def _map_trigger_to_gripper_v1(trigger: float, side: str) -> float:
     return 0.044 * (1.0 - trigger)  # 0→0.044, 1→0
 
 
-# V1 zero position (from LeRobot calibration with homing_offset=0)
-# All joints at 0 rad = calibrated zero position (arms straight down)
-# Joint limits are ±90° (±1.5708 rad) from this zero
+# V1 zero position in MODEL/URDF space (NOT motor space!)
+# Physical arms-down = motor space zeros, but IK operates in model space.
+# Model-space arms-down = −joint_offsets (from config files).
+# These values ensure IK's initial belief matches physical arms-down position.
 _V1_ZERO_POSITION = {
-    "right": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # All at zero
-    "left":  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # All at zero
+    "right": [0.0, 0.506145, -1.570796, 1.745329, 0.0, -0.331612, 1.570796, 0.0],
+    "left":  [0.0, -0.506145, 1.570796, 1.745329, 0.0, 0.331612, -1.570796, 0.0],
 }
 
 # Max position change per step (rad) - prevents sudden jumps that fault motors

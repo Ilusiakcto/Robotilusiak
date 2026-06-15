@@ -1,26 +1,26 @@
 # OpenArm V1 Right Arm Configuration
 
-# Joint limits for V1 - matched to LeRobot calibration (±90° = ±1.5708 rad)
-# IMPORTANT: These match the lerobot calibration files in ~/.cache/huggingface/lerobot/calibration/
+# Joint limits for V1 in MODEL SPACE (after offset conversion)
+# Note: J4 needs extended range because model-space arms-down = 1.745 rad (100°)
 joint_limits:
   right_arm:
     - [-1.5708, 1.5708]     # joint1 - ±90°
     - [-1.5708, 1.5708]     # joint2 - ±90°
-    - [-1.5708, 1.5708]     # joint3 - ±90°
-    - [-1.5708, 1.5708]     # joint4 - ±90° (elbow)
+    - [-2.0, 2.0]           # joint3 - extended for model-space range
+    - [-2.0, 2.0]           # joint4 - extended (elbow needs ~100° for arms-down)
     - [-1.5708, 1.5708]     # joint5 - ±90°
     - [-1.5708, 1.5708]     # joint6 - ±90°
-    - [-1.5708, 1.5708]     # joint7 - ±90°
+    - [-2.0, 2.0]           # joint7 - extended for model-space range
     - [0.0, 0.044]           # joint8 - V1 gripper slide joint (meters)
 
   left_arm:
     - [-1.5708, 1.5708]     # joint1 - ±90°
     - [-1.5708, 1.5708]     # joint2 - ±90°
-    - [-1.5708, 1.5708]     # joint3 - ±90°
-    - [-1.5708, 1.5708]     # joint4 - ±90° (elbow)
+    - [-2.0, 2.0]           # joint3 - extended for model-space range
+    - [-2.0, 2.0]           # joint4 - extended (elbow needs ~100° for arms-down)
     - [-1.5708, 1.5708]     # joint5 - ±90°
     - [-1.5708, 1.5708]     # joint6 - ±90°
-    - [-1.5708, 1.5708]     # joint7 - ±90°
+    - [-2.0, 2.0]           # joint7 - extended for model-space range
     - [0.0, 0.044]           # joint8 - V1 gripper slide joint (meters)
 
 joint_offsets:
