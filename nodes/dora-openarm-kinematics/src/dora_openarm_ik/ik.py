@@ -216,7 +216,11 @@ def _run(args: argparse.Namespace) -> None:
                 else:
                     qpos = None
                 if qpos is not None and len(qpos) == 8:
+                    old_pos = actual_robot_pos["right"]
                     actual_robot_pos["right"] = qpos.copy()
+                    # DEBUG: Log state updates periodically
+                    if old_pos is None or np.max(np.abs(qpos - old_pos)) > 0.01:
+                        print(f"[ik] STATE_RIGHT updated: J1-4=[{qpos[0]:.3f}, {qpos[1]:.3f}, {qpos[2]:.3f}, {qpos[3]:.3f}]")
             except Exception as e:
                 print(f"[ik] Warning: Could not parse state_right: {e}")
             continue
@@ -233,7 +237,11 @@ def _run(args: argparse.Namespace) -> None:
                 else:
                     qpos = None
                 if qpos is not None and len(qpos) == 8:
+                    old_pos = actual_robot_pos["left"]
                     actual_robot_pos["left"] = qpos.copy()
+                    # DEBUG: Log state updates periodically
+                    if old_pos is None or np.max(np.abs(qpos - old_pos)) > 0.01:
+                        print(f"[ik] STATE_LEFT updated: J1-4=[{qpos[0]:.3f}, {qpos[1]:.3f}, {qpos[2]:.3f}, {qpos[3]:.3f}]")
             except Exception as e:
                 print(f"[ik] Warning: Could not parse state_left: {e}")
             continue
@@ -267,11 +275,14 @@ def _run(args: argparse.Namespace) -> None:
                     right_pos = actual_robot_pos["right"]
                     left_pos = actual_robot_pos["left"] if actual_robot_pos["left"] is not None else np.zeros(8, dtype=np.float32)
                     full_state = np.concatenate([right_pos, left_pos])
+                    print(f"[ik] RIGHT SYNC: actual_pos={right_pos[:4]}")
                     kin.sync(full_state)
                     # Reset frame counter for ramp-up period
                     frames_since_activation["right"] = 0
                     synced_on_activation["right"] = True
-                    print(f"[ik] RIGHT ARM ACTIVATED: Synced IK, starting ramp-up. J4={right_pos[3]:.3f}")
+                    print(f"[ik] RIGHT ARM ACTIVATED: Synced IK to actual robot. J1-4=[{right_pos[0]:.3f}, {right_pos[1]:.3f}, {right_pos[2]:.3f}, {right_pos[3]:.3f}]")
+                else:
+                    print(f"[ik] RIGHT ARM ACTIVATED: NO SYNC! actual_pos={'None' if actual_robot_pos['right'] is None else 'exists'}, already_synced={synced_on_activation['right']}")
             elif not trigger_active["right"] and was_active:
                 # Reset sync flag when trigger released
                 synced_on_activation["right"] = False
@@ -293,11 +304,14 @@ def _run(args: argparse.Namespace) -> None:
                     right_pos = actual_robot_pos["right"] if actual_robot_pos["right"] is not None else np.zeros(8, dtype=np.float32)
                     left_pos = actual_robot_pos["left"]
                     full_state = np.concatenate([right_pos, left_pos])
+                    print(f"[ik] LEFT SYNC: actual_pos={left_pos[:4]}")
                     kin.sync(full_state)
                     # Reset frame counter for ramp-up period
                     frames_since_activation["left"] = 0
                     synced_on_activation["left"] = True
-                    print(f"[ik] LEFT ARM ACTIVATED: Synced IK, starting ramp-up. J4={left_pos[3]:.3f}")
+                    print(f"[ik] LEFT ARM ACTIVATED: Synced IK to actual robot. J1-4=[{left_pos[0]:.3f}, {left_pos[1]:.3f}, {left_pos[2]:.3f}, {left_pos[3]:.3f}]")
+                else:
+                    print(f"[ik] LEFT ARM ACTIVATED: NO SYNC! actual_pos={'None' if actual_robot_pos['left'] is None else 'exists'}, already_synced={synced_on_activation['left']}")
             elif not trigger_active["left"] and was_active:
                 # Reset sync flag when trigger released
                 synced_on_activation["left"] = False
@@ -320,6 +334,12 @@ def _run(args: argparse.Namespace) -> None:
         # Only send positions for arms with active triggers (V1 safety)
         if trigger_active["right"]:
             pos_right = result[:8].copy()
+            # DEBUG: Log command vs actual position
+            if actual_robot_pos["right"] is not None:
+                delta = pos_right - actual_robot_pos["right"]
+                max_delta = np.max(np.abs(delta))
+                if max_delta > 0.1:  # Log if delta > 0.1 rad
+                    print(f"[ik] RIGHT CMD delta > 0.1rad! max={max_delta:.3f} cmd={pos_right[:4]} actual={actual_robot_pos['right'][:4]}")
             # V2 APPROACH: No smoothing - let IK damping and motor controllers handle it
             # if args.gripper_type == "v1":
             #     # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
@@ -329,6 +349,12 @@ def _run(args: argparse.Namespace) -> None:
             node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
         if trigger_active["left"]:
             pos_left = result[8:16].copy()
+            # DEBUG: Log command vs actual position
+            if actual_robot_pos["left"] is not None:
+                delta = pos_left - actual_robot_pos["left"]
+                max_delta = np.max(np.abs(delta))
+                if max_delta > 0.1:  # Log if delta > 0.1 rad
+                    print(f"[ik] LEFT CMD delta > 0.1rad! max={max_delta:.3f} cmd={pos_left[:4]} actual={actual_robot_pos['left'][:4]}")
             # V2 APPROACH: No smoothing - let IK damping and motor controllers handle it
             # if args.gripper_type == "v1":
             #     # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd

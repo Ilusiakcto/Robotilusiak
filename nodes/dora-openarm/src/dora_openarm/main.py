@@ -150,6 +150,12 @@ def main():
             )
         elif event_id == "request_state":
             state = arm.fetch_state(refresh=args.refresh_every_request)
+            # DEBUG: Log state periodically (every 50 requests = ~1/sec at 50Hz)
+            if not hasattr(main, '_state_count'):
+                main._state_count = 0
+            main._state_count += 1
+            if main._state_count % 50 == 1:
+                print(f"[{name}] STATE: J1-4=[{state['qpos'][0]:.3f}, {state['qpos'][1]:.3f}, {state['qpos'][2]:.3f}, {state['qpos'][3]:.3f}]")
             node.send_output(
                 "state",
                 pa.StructArray.from_arrays(
@@ -172,17 +178,30 @@ def main():
                 # other_arm_position = None
             
             # VERIFICATION: Log first command and current state to confirm hypothesis
+            # DEBUG: Log every command with delta from current position
+            pos_array = np.array(new_position, dtype=np.float32)
             if not first_command_logged:
                 current_state = arm.fetch_state(refresh=True)
-                pos_array = np.array(new_position, dtype=np.float32)
                 print(f"\n{'='*60}")
                 print(f"[{name}] FIRST MOVE COMMAND RECEIVED")
                 print(f"[{name}] Current robot state (qpos): {current_state['qpos']}")
                 print(f"[{name}] First command received:      {pos_array}")
-                print(f"[{name}] Expected offset values:      [0, -0.506, +1.571, -1.745, 0, +0.332, -1.571, 0]")
-                print(f"[{name}] If command ≈ offset values, hypothesis CONFIRMED!")
+                delta = pos_array - current_state['qpos']
+                print(f"[{name}] DELTA (cmd - state):         {delta}")
+                print(f"[{name}] Max delta: {np.max(np.abs(delta)):.3f} rad")
                 print(f"{'='*60}\n")
                 first_command_logged = True
+            else:
+                # Log subsequent commands periodically
+                if not hasattr(main, '_cmd_count'):
+                    main._cmd_count = 0
+                main._cmd_count += 1
+                if main._cmd_count % 25 == 0:  # Every 25 commands (~0.5 sec)
+                    current_state = arm.fetch_state(refresh=False)
+                    delta = pos_array - current_state['qpos']
+                    max_delta = np.max(np.abs(delta))
+                    if max_delta > 0.05:  # Only log if significant delta
+                        print(f"[{name}] CMD #{main._cmd_count}: max_delta={max_delta:.3f} cmd_J4={pos_array[3]:.3f} state_J4={current_state['qpos'][3]:.3f}")
             if not initialized:
                 initialized = _align(
                     arm,
