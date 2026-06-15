@@ -184,6 +184,22 @@ def _run(args: argparse.Namespace) -> None:
     
     # Track if we've synced IK to actual robot position on first activation
     synced_on_activation = {"right": False, "left": False}
+    
+    # Track if we've logged first state reception (diagnostic)
+    first_state_logged = {"right": False, "left": False}
+    
+    # === DIAGNOSTIC: Print expected positions at startup ===
+    print("\n" + "="*70)
+    print("[ik] DIAGNOSTIC: IK Node Starting - Expected Calibration Values")
+    print("="*70)
+    if args.gripper_type == "v1":
+        print(f"[ik] _V1_ZERO_POSITION (what IK expects when arms are down):")
+        print(f"[ik]   RIGHT: {_V1_ZERO_POSITION['right'][:4]}...")
+        print(f"[ik]   LEFT:  {_V1_ZERO_POSITION['left'][:4]}...")
+        print(f"[ik]")
+        print(f"[ik] If robot motor positions DON'T match these when arms are down,")
+        print(f"[ik] update _V1_ZERO_POSITION to match actual motor readings.")
+    print("="*70 + "\n")
 
     for event in node:
         if event["type"] != "INPUT":
@@ -218,8 +234,27 @@ def _run(args: argparse.Namespace) -> None:
                 if qpos is not None and len(qpos) == 8:
                     old_pos = actual_robot_pos["right"]
                     actual_robot_pos["right"] = qpos.copy()
-                    # DEBUG: Log state updates periodically
-                    if old_pos is None or np.max(np.abs(qpos - old_pos)) > 0.01:
+                    
+                    # === DIAGNOSTIC: First state reception comparison ===
+                    if not first_state_logged["right"] and args.gripper_type == "v1":
+                        first_state_logged["right"] = True
+                        expected = np.array(_V1_ZERO_POSITION["right"], dtype=np.float32)
+                        delta = qpos - expected
+                        max_delta = np.max(np.abs(delta))
+                        print("\n" + "="*70)
+                        print("[ik] DIAGNOSTIC: FIRST STATE RECEIVED - RIGHT ARM")
+                        print("="*70)
+                        print(f"[ik] ACTUAL motor pos:   [{qpos[0]:+.4f}, {qpos[1]:+.4f}, {qpos[2]:+.4f}, {qpos[3]:+.4f}, ...]")
+                        print(f"[ik] EXPECTED (IK init): [{expected[0]:+.4f}, {expected[1]:+.4f}, {expected[2]:+.4f}, {expected[3]:+.4f}, ...]")
+                        print(f"[ik] DELTA:              [{delta[0]:+.4f}, {delta[1]:+.4f}, {delta[2]:+.4f}, {delta[3]:+.4f}, ...]")
+                        print(f"[ik] MAX DELTA: {max_delta:.4f} rad ({np.rad2deg(max_delta):.1f} deg)")
+                        if max_delta > 0.3:
+                            print(f"[ik] *** WARNING: Large mismatch! This will cause motor faults! ***")
+                            print(f"[ik] *** Update _V1_ZERO_POSITION in ik.py to match ACTUAL values ***")
+                        else:
+                            print(f"[ik] OK: Positions match within tolerance.")
+                        print("="*70 + "\n")
+                    elif old_pos is None or np.max(np.abs(qpos - old_pos)) > 0.01:
                         print(f"[ik] STATE_RIGHT updated: J1-4=[{qpos[0]:.3f}, {qpos[1]:.3f}, {qpos[2]:.3f}, {qpos[3]:.3f}]")
             except Exception as e:
                 print(f"[ik] Warning: Could not parse state_right: {e}")
@@ -239,8 +274,27 @@ def _run(args: argparse.Namespace) -> None:
                 if qpos is not None and len(qpos) == 8:
                     old_pos = actual_robot_pos["left"]
                     actual_robot_pos["left"] = qpos.copy()
-                    # DEBUG: Log state updates periodically
-                    if old_pos is None or np.max(np.abs(qpos - old_pos)) > 0.01:
+                    
+                    # === DIAGNOSTIC: First state reception comparison ===
+                    if not first_state_logged["left"] and args.gripper_type == "v1":
+                        first_state_logged["left"] = True
+                        expected = np.array(_V1_ZERO_POSITION["left"], dtype=np.float32)
+                        delta = qpos - expected
+                        max_delta = np.max(np.abs(delta))
+                        print("\n" + "="*70)
+                        print("[ik] DIAGNOSTIC: FIRST STATE RECEIVED - LEFT ARM")
+                        print("="*70)
+                        print(f"[ik] ACTUAL motor pos:   [{qpos[0]:+.4f}, {qpos[1]:+.4f}, {qpos[2]:+.4f}, {qpos[3]:+.4f}, ...]")
+                        print(f"[ik] EXPECTED (IK init): [{expected[0]:+.4f}, {expected[1]:+.4f}, {expected[2]:+.4f}, {expected[3]:+.4f}, ...]")
+                        print(f"[ik] DELTA:              [{delta[0]:+.4f}, {delta[1]:+.4f}, {delta[2]:+.4f}, {delta[3]:+.4f}, ...]")
+                        print(f"[ik] MAX DELTA: {max_delta:.4f} rad ({np.rad2deg(max_delta):.1f} deg)")
+                        if max_delta > 0.3:
+                            print(f"[ik] *** WARNING: Large mismatch! This will cause motor faults! ***")
+                            print(f"[ik] *** Update _V1_ZERO_POSITION in ik.py to match ACTUAL values ***")
+                        else:
+                            print(f"[ik] OK: Positions match within tolerance.")
+                        print("="*70 + "\n")
+                    elif old_pos is None or np.max(np.abs(qpos - old_pos)) > 0.01:
                         print(f"[ik] STATE_LEFT updated: J1-4=[{qpos[0]:.3f}, {qpos[1]:.3f}, {qpos[2]:.3f}, {qpos[3]:.3f}]")
             except Exception as e:
                 print(f"[ik] Warning: Could not parse state_left: {e}")
