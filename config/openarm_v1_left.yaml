@@ -38,10 +38,10 @@ joint_delta_position_limits:
   - 10.0 # J6
   - 10.0 # J7
 
-# CAN interface
+# CAN interface - right arm on can0, left arm on can1
 can_interface:
-  right_arm: "can1"
-  left_arm: "can0"
+  right_arm: "can0"
+  left_arm: "can1"
 
 # Motor configuration - same motors as V2/Cell
 motor_config:
