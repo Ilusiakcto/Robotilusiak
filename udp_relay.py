@@ -31,10 +31,10 @@ import argparse
 import os
 
 # Configuration from environment variables (with defaults)
-LOCAL_HOST = os.environ.get("UDP_RELAY_LOCAL_HOST")
-LOCAL_PORT = int(os.environ.get("UDP_RELAY_LOCAL_PORT"))
-REMOTE_HOST = os.environ.get("UDP_RELAY_REMOTE_HOST")
-REMOTE_PORT = int(os.environ.get("UDP_RELAY_REMOTE_PORT"))
+LOCAL_HOST = os.environ.get("UDP_RELAY_LOCAL_HOST", "0.0.0.0")
+LOCAL_PORT = int(os.environ.get("UDP_RELAY_LOCAL_PORT", "5006"))
+REMOTE_HOST = os.environ.get("UDP_RELAY_REMOTE_HOST", "100.123.116.112")
+REMOTE_PORT = int(os.environ.get("UDP_RELAY_REMOTE_PORT", "5006"))
 
 
 def relay_udp(local_host, local_port, remote_host, remote_port):
