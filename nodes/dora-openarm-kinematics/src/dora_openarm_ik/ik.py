@@ -388,33 +388,24 @@ def _run(args: argparse.Namespace) -> None:
         # Only send positions for arms with active triggers (V1 safety)
         if trigger_active["right"]:
             pos_right = result[:8].copy()
-            # DEBUG: Log command vs actual position
-            if actual_robot_pos["right"] is not None:
-                delta = pos_right - actual_robot_pos["right"]
-                max_delta = np.max(np.abs(delta))
-                if max_delta > 0.1:  # Log if delta > 0.1 rad
-                    print(f"[ik] RIGHT CMD delta > 0.1rad! max={max_delta:.3f} cmd={pos_right[:4]} actual={actual_robot_pos['right'][:4]}")
-            # V2 APPROACH: No smoothing - let IK damping and motor controllers handle it
-            # if args.gripper_type == "v1":
-            #     # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
-            #     pos_right = _smooth_position_safe(pos_right, actual_robot_pos["right"], prev_cmd["right"], frames_since_activation["right"])
-            #     prev_cmd["right"] = pos_right.copy()
-            #     frames_since_activation["right"] += 1
+            
+            # RATE LIMITING (OpenArmX approach): Clamp delta to prevent motor faults
+            if args.gripper_type == "v1" and actual_robot_pos["right"] is not None:
+                pos_right = _smooth_position_safe(pos_right, actual_robot_pos["right"], prev_cmd["right"], frames_since_activation["right"])
+                prev_cmd["right"] = pos_right.copy()
+                frames_since_activation["right"] += 1
+            
             node.send_output("position_right", pa.array(pos_right, type=pa.float32()), ts)
+            
         if trigger_active["left"]:
             pos_left = result[8:16].copy()
-            # DEBUG: Log command vs actual position
-            if actual_robot_pos["left"] is not None:
-                delta = pos_left - actual_robot_pos["left"]
-                max_delta = np.max(np.abs(delta))
-                if max_delta > 0.1:  # Log if delta > 0.1 rad
-                    print(f"[ik] LEFT CMD delta > 0.1rad! max={max_delta:.3f} cmd={pos_left[:4]} actual={actual_robot_pos['left'][:4]}")
-            # V2 APPROACH: No smoothing - let IK damping and motor controllers handle it
-            # if args.gripper_type == "v1":
-            #     # Safe smoothing with ramp-up, prefers actual pos, falls back to prev_cmd
-            #     pos_left = _smooth_position_safe(pos_left, actual_robot_pos["left"], prev_cmd["left"], frames_since_activation["left"])
-            #     prev_cmd["left"] = pos_left.copy()
-            #     frames_since_activation["left"] += 1
+            
+            # RATE LIMITING (OpenArmX approach): Clamp delta to prevent motor faults
+            if args.gripper_type == "v1" and actual_robot_pos["left"] is not None:
+                pos_left = _smooth_position_safe(pos_left, actual_robot_pos["left"], prev_cmd["left"], frames_since_activation["left"])
+                prev_cmd["left"] = pos_left.copy()
+                frames_since_activation["left"] += 1
+            
             node.send_output("position_left", pa.array(pos_left, type=pa.float32()), ts)
 
 
