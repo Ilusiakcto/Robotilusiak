@@ -137,9 +137,11 @@ class OpenArmPyrokiIK:
         # Current joint configuration (IK space)
         self.q_current = self._get_default_config()
         
-        # Target poses (SE3)
-        self.target_L: jaxlie.SE3 | None = None
-        self.target_R: jaxlie.SE3 | None = None
+        # Target poses (always SE3, use flags to track if active)
+        self.target_L: jaxlie.SE3 = jaxlie.SE3.identity()
+        self.target_R: jaxlie.SE3 = jaxlie.SE3.identity()
+        self.target_L_active: bool = False
+        self.target_R_active: bool = False
         
         # JIT compile the solve function
         self._jit_solve = jax.jit(self._solve_internal)
@@ -208,31 +210,29 @@ class OpenArmPyrokiIK:
             )
         )
         
-        # Pose cost for left arm
-        if target_L is not None:
-            costs.append(
-                pk.costs.pose_cost_analytic_jac(
-                    self.robot,
-                    JointVar(0),
-                    target_L,
-                    jnp.array(self.L_ee_link_idx, dtype=jnp.int32),
-                    pos_weight=100.0,  # Strong target tracking
-                    ori_weight=20.0,
-                )
+        # Pose cost for left arm (always added for consistent JIT)
+        costs.append(
+            pk.costs.pose_cost_analytic_jac(
+                self.robot,
+                JointVar(0),
+                target_L,
+                jnp.array(self.L_ee_link_idx, dtype=jnp.int32),
+                pos_weight=100.0,
+                ori_weight=20.0,
             )
+        )
         
-        # Pose cost for right arm
-        if target_R is not None:
-            costs.append(
-                pk.costs.pose_cost_analytic_jac(
-                    self.robot,
-                    JointVar(0),
-                    target_R,
-                    jnp.array(self.R_ee_link_idx, dtype=jnp.int32),
-                    pos_weight=100.0,  # Strong target tracking
-                    ori_weight=20.0,
-                )
+        # Pose cost for right arm (always added for consistent JIT)
+        costs.append(
+            pk.costs.pose_cost_analytic_jac(
+                self.robot,
+                JointVar(0),
+                target_R,
+                jnp.array(self.R_ee_link_idx, dtype=jnp.int32),
+                pos_weight=100.0,
+                ori_weight=20.0,
             )
+        )
         
         # Joint limit cost (KEY: prevents overloads by penalizing near-limit positions)
         costs.append(pk.costs.limit_cost(self.robot, JointVar(0), weight=20.0))
@@ -283,8 +283,10 @@ class OpenArmPyrokiIK:
         
         if side == "left":
             self.target_L = se3_pose
+            self.target_L_active = True
         else:
             self.target_R = se3_pose
+            self.target_R_active = True
     
     def sync(self, joint_positions: np.ndarray, side: str):
         """Sync IK state to actual robot position."""
@@ -309,10 +311,10 @@ class OpenArmPyrokiIK:
     
     def solve(self) -> np.ndarray | None:
         """Solve IK and return joint positions for both arms."""
-        if self.target_L is None and self.target_R is None:
+        if not self.target_L_active and not self.target_R_active:
             return None
         
-        # Solve IK
+        # Solve IK (always pass SE3 objects for consistent JIT)
         q_solved = self._jit_solve(self.target_L, self.target_R, self.q_current)
         
         # Update current state
