@@ -236,8 +236,8 @@ class OpenArmPyrokiIK:
         # Joint limit cost (KEY: prevents overloads by penalizing near-limit positions)
         costs.append(pk.costs.limit_cost(self.robot, JointVar(0), weight=20.0))
         
-        # Self-collision cost
-        costs.append(pk.costs.self_collision_cost(self.robot, JointVar(0), weight=10.0))
+        # Note: self_collision_cost removed - requires RobotCollision setup
+        # The limit_cost handles joint overload prevention
         
         return costs
     
