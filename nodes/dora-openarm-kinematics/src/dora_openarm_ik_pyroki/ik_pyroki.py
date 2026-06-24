@@ -189,12 +189,13 @@ class OpenArmPyrokiIK:
         JointVar = self.robot.joint_var_cls
         
         # Rest cost: penalize moving away from current position (prevents drift)
+        # Lower weight = joints can move more freely to track targets
         if q_current is not None:
             costs.append(
                 pk.costs.rest_cost(
                     JointVar(0),
                     rest_pose=q_current,
-                    weight=1.0,  # Match teleopxr: low weight allows J4 to bend
+                    weight=0.1,  # Reduced from 1.0 - allow larger joint movements
                 )
             )
         
