@@ -198,13 +198,14 @@ class OpenArmPyrokiIK:
                 )
             )
         
-        # Manipulability cost
+        # Manipulability cost - encourages bent elbow (avoids singularities)
+        # Higher weight pushes solver to prefer configurations with good manipulability
         costs.append(
             pk.costs.manipulability_cost(
                 self.robot,
                 JointVar(0),
                 jnp.array([self.L_ee_link_idx, self.R_ee_link_idx], dtype=jnp.int32),
-                weight=0.01,
+                weight=0.5,  # Increased from 0.01 to encourage elbow bending
             )
         )
         
