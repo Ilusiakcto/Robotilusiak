@@ -312,8 +312,16 @@ class OpenArmPyrokiIK:
         if self.target_L is None and self.target_R is None:
             return None
         
+        # Store previous J4 for debugging
+        j4_before = float(self.q_current[3]) if len(self.q_current) > 3 else 0.0
+        
         # Solve IK
         q_solved = self._jit_solve(self.target_L, self.target_R, self.q_current)
+        
+        # Debug: log J4 changes
+        j4_after = float(q_solved[3]) if len(q_solved) > 3 else 0.0
+        if abs(j4_after - j4_before) > 0.001:
+            print(f"[pyroki-ik] J4: {j4_before:.3f} -> {j4_after:.3f} (delta: {j4_after-j4_before:.3f})")
         
         # Update current state
         self.q_current = q_solved
