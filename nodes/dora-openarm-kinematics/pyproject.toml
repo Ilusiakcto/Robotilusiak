@@ -32,9 +32,20 @@ dependencies = [
     "pyarrow",
 ]
 
+[project.optional-dependencies]
+pyroki = [
+    "jax",
+    "jaxlib",
+    "jaxlie",
+    "jaxls",
+    "pyroki",
+    "teleop-xr",
+]
+
 [project.scripts]
 dora-openarm-fk = "dora_openarm_fk:main"
 dora-openarm-ik = "dora_openarm_ik:main"
+dora-openarm-ik-pyroki = "dora_openarm_ik_pyroki:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -84,12 +84,11 @@ nodes:
       - status
 
   - id: ik
-    build: pip install -e nodes/dora-openarm-kinematics --force-reinstall --no-deps
-    path: dora-openarm-ik
-    # V1 requires specifying the XML, EE frame names, and gripper type (slide joint)
-    # The XML has V1 joint limits (J2: ±100°) - different from V2!
-    # Using safer V1 params: dt=0.02, damping=0.2 (smaller steps, more conservative)
-    args: "--mode bimanual --xml models/v1/openarm_bimanual.xml --frame-right openarm_right_hand_tcp --frame-type-right body --frame-left openarm_left_hand_tcp --frame-type-left body --gripper-type v1 --max-iters 10 --dt 0.02 --damping 0.2 --posture-cost 0.01 --lm-damping 0.01"
+    build: pip install -e nodes/dora-openarm-kinematics[pyroki] --force-reinstall --no-deps
+    path: dora-openarm-ik-pyroki
+    # Pyroki IK: JAX-based cost optimization, naturally avoids J4 overloads via limit_cost
+    # URDF auto-fetched from openarm_description repo if not provided
+    args: ""
     inputs:
       tick: quittable-tick-leader/tick
       target_right: udp-receiver/pose_right
