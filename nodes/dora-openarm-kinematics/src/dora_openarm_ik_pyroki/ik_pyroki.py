@@ -62,11 +62,12 @@ _V1_ZERO_POSITION = {
 }
 
 # Max position change per step (rad) - prevents sudden jumps
+# J4 needs higher delta to allow bending - it's the elbow!
 _MAX_DELTA_PER_STEP = np.array([
     0.08,  # J1 - shoulder
     0.08,  # J2 - shoulder  
-    0.08,  # J3 - elbow
-    0.04,  # J4 - elbow (most sensitive)
+    0.08,  # J3 - upper arm rotation
+    0.08,  # J4 - ELBOW BEND - needs to move freely!
     0.10,  # J5 - wrist
     0.10,  # J6 - wrist
     0.10,  # J7 - wrist
@@ -193,7 +194,7 @@ class OpenArmPyrokiIK:
                 pk.costs.rest_cost(
                     JointVar(0),
                     rest_pose=q_current,
-                    weight=3.0,  # Balanced: allows movement but prevents drift
+                    weight=1.0,  # Match teleopxr: low weight allows J4 to bend
                 )
             )
         
