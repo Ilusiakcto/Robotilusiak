@@ -314,8 +314,23 @@ class OpenArmPyrokiIK:
         if not self.target_L_active and not self.target_R_active:
             return None
         
+        # For inactive arms, use current FK pose so they stay in place
+        # (instead of SE3.identity() which would pull them to origin)
+        fk = self.robot.forward_kinematics(self.q_current)
+        
+        target_L = self.target_L
+        target_R = self.target_R
+        
+        if not self.target_L_active:
+            # Use current FK pose for left arm
+            target_L = jaxlie.SE3(fk[self.L_ee_link_idx])
+        
+        if not self.target_R_active:
+            # Use current FK pose for right arm
+            target_R = jaxlie.SE3(fk[self.R_ee_link_idx])
+        
         # Solve IK (always pass SE3 objects for consistent JIT)
-        q_solved = self._jit_solve(self.target_L, self.target_R, self.q_current)
+        q_solved = self._jit_solve(target_L, target_R, self.q_current)
         
         # Update current state
         self.q_current = q_solved
