@@ -130,8 +130,14 @@ class OpenArmPyrokiIK:
         self.L_ee_link_idx = self.robot.links.names.index("openarm_left_hand")
         self.R_ee_link_idx = self.robot.links.names.index("openarm_right_hand")
         
+        # Find elbow link indices (link4 = after J4 elbow joint)
+        self.L_elbow_link_idx = self.robot.links.names.index("openarm_left_link4")
+        self.R_elbow_link_idx = self.robot.links.names.index("openarm_right_link4")
+        
         print(f"[pyroki-ik] Left EE link index: {self.L_ee_link_idx}")
         print(f"[pyroki-ik] Right EE link index: {self.R_ee_link_idx}")
+        print(f"[pyroki-ik] Left elbow link index: {self.L_elbow_link_idx}")
+        print(f"[pyroki-ik] Right elbow link index: {self.R_elbow_link_idx}")
         print(f"[pyroki-ik] Actuated joints: {len(self.robot.joints.actuated_names)}")
         
         # Current joint configuration (IK space)
@@ -178,6 +184,38 @@ class OpenArmPyrokiIK:
         
         return jnp.array(config_list)
     
+    def _compute_elbow_hint(self, target_ee: jaxlie.SE3, side: str) -> jaxlie.SE3:
+        """Compute a hint position for the elbow based on target end-effector pose.
+        
+        This creates a "natural" elbow position that's behind and below the hand,
+        encouraging J4 to bend like a human elbow would.
+        
+        Geometry: elbow should be roughly halfway between shoulder and hand,
+        but offset backward (negative X in robot frame) to create natural bend.
+        """
+        # Get hand target position
+        hand_pos = target_ee.translation()
+        
+        # Shoulder base position (approximate - robot base is at origin)
+        # For V1, shoulder is near [0, ±0.15, 0.2] depending on side
+        if side == "left":
+            shoulder = jnp.array([0.0, 0.15, 0.2])
+        else:
+            shoulder = jnp.array([0.0, -0.15, 0.2])
+        
+        # Elbow hint: midpoint between shoulder and hand, offset backward
+        midpoint = (shoulder + hand_pos) / 2.0
+        
+        # Offset backward (negative X) and slightly down to create natural elbow bend
+        elbow_offset = jnp.array([-0.08, 0.0, -0.05])
+        elbow_pos = midpoint + elbow_offset
+        
+        # Return as SE3 with identity rotation (we only care about position)
+        return jaxlie.SE3.from_rotation_and_translation(
+            jaxlie.SO3.identity(),
+            elbow_pos
+        )
+    
     def _build_costs(
         self,
         target_L: jaxlie.SE3 | None,
@@ -222,6 +260,19 @@ class OpenArmPyrokiIK:
                     ori_weight=20.0,
                 )
             )
+            # Elbow position hint: encourage elbow to be behind/below hand
+            # This creates a "natural" arm pose and forces J4 to bend
+            elbow_hint_L = self._compute_elbow_hint(target_L, side="left")
+            costs.append(
+                pk.costs.pose_cost_analytic_jac(
+                    self.robot,
+                    JointVar(0),
+                    elbow_hint_L,
+                    jnp.array(self.L_elbow_link_idx, dtype=jnp.int32),
+                    pos_weight=30.0,  # Moderate weight - hint, not hard constraint
+                    ori_weight=0.0,   # Don't care about elbow orientation
+                )
+            )
         
         # Pose cost for right arm
         if target_R is not None:
@@ -233,6 +284,18 @@ class OpenArmPyrokiIK:
                     jnp.array(self.R_ee_link_idx, dtype=jnp.int32),
                     pos_weight=100.0,  # Strong target tracking
                     ori_weight=20.0,
+                )
+            )
+            # Elbow position hint for right arm
+            elbow_hint_R = self._compute_elbow_hint(target_R, side="right")
+            costs.append(
+                pk.costs.pose_cost_analytic_jac(
+                    self.robot,
+                    JointVar(0),
+                    elbow_hint_R,
+                    jnp.array(self.R_elbow_link_idx, dtype=jnp.int32),
+                    pos_weight=30.0,
+                    ori_weight=0.0,
                 )
             )
         
