@@ -39,7 +39,6 @@ pyroki = [
     "jaxlie",
     "jaxls",
     "pyroki",
-    "teleop-xr",
 ]
 
 [project.scripts]
