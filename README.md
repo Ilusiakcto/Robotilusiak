@@ -33,8 +33,11 @@ Use this when operating the physical robot remotely over Tailscale VPN.
 sudo ip link set can0 up type can bitrate 1000000
 sudo ip link set can1 up type can bitrate 1000000
 
-# Start the robot dataflow
+# Install Pyroki IK dependencies (first time only)
 cd dora-openarm-data-collection
+pip install -e nodes/dora-openarm-kinematics[pyroki]
+
+# Start the robot dataflow
 dora run dataflow-vr-real-v1.yaml --uv
 ```
 
