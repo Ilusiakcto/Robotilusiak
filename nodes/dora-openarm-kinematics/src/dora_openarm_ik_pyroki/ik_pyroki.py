@@ -41,9 +41,6 @@ import os
 import dora
 import numpy as np
 import pyarrow as pa
-import subprocess
-import tempfile
-import shutil
 
 import jax
 import jax.numpy as jnp
@@ -91,41 +88,27 @@ def _smooth_position(target_pos: np.ndarray, base_pos: np.ndarray) -> np.ndarray
 
 
 def _get_urdf_path() -> str:
-    """Fetch OpenArm URDF from git repo and process xacro."""
-    cache_dir = os.path.expanduser("~/.cache/openarm_urdf")
-    urdf_cache = os.path.join(cache_dir, "openarm_v10_bimanual.urdf")
+    """Get path to embedded OpenArm URDF (no external dependencies)."""
+    # Look for URDF relative to this package
+    # Try multiple locations
+    possible_paths = [
+        # Relative to dora-openarm-data-collection repo root
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "models", "openarm_v10_bimanual.urdf"),
+        # Relative to working directory
+        os.path.join("models", "openarm_v10_bimanual.urdf"),
+        # Absolute fallback
+        "/home/mirality1/openarm_teleop_v1/openarm_teleoperation/models/openarm_v10_bimanual.urdf",
+    ]
     
-    # Return cached URDF if exists
-    if os.path.exists(urdf_cache):
-        print(f"[pyroki-ik] Using cached URDF: {urdf_cache}")
-        return urdf_cache
+    for path in possible_paths:
+        abs_path = os.path.abspath(path)
+        if os.path.exists(abs_path):
+            print(f"[pyroki-ik] Found URDF at: {abs_path}")
+            return abs_path
     
-    print("[pyroki-ik] Downloading openarm_description repo...")
-    os.makedirs(cache_dir, exist_ok=True)
-    
-    # Clone repo to temp dir
-    repo_url = "https://github.com/enactic/openarm_description.git"
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        repo_dir = os.path.join(tmp_dir, "openarm_description")
-        subprocess.run(["git", "clone", "--depth", "1", repo_url, repo_dir], check=True)
-        
-        # Process xacro
-        xacro_path = os.path.join(repo_dir, "assets/robot/openarm_v1.0/urdf/openarm_v10.urdf.xacro")
-        print(f"[pyroki-ik] Processing xacro: {xacro_path}")
-        
-        result = subprocess.run(
-            ["xacro", xacro_path, "bimanual:=true", "hand:=true", "ros2_control:=false"],
-            capture_output=True, text=True, check=True,
-            cwd=repo_dir
-        )
-        
-        # Write URDF to cache
-        with open(urdf_cache, "w") as f:
-            f.write(result.stdout)
-        
-        print(f"[pyroki-ik] URDF cached at: {urdf_cache}")
-    
-    return urdf_cache
+    raise FileNotFoundError(
+        f"Could not find openarm_v10_bimanual.urdf. Searched: {possible_paths}"
+    )
 
 
 class OpenArmPyrokiIK:
