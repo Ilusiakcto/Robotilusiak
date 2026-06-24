@@ -39,6 +39,7 @@ pyroki = [
     "jaxlie",
     "jaxls",
     "pyroki",
+    "yourdfpy",
 ]
 
 [project.scripts]

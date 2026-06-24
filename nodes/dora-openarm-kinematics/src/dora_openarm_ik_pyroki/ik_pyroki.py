@@ -47,6 +47,7 @@ import jax.numpy as jnp
 import jaxlie
 import jaxls
 import pyroki as pk
+import yourdfpy
 
 
 # Joint offsets: IK model space -> motor space
@@ -120,8 +121,9 @@ class OpenArmPyrokiIK:
             urdf_path = _get_urdf_path()
         print(f"[pyroki-ik] Loading URDF from: {urdf_path}")
         
-        # Load robot model
-        self.robot = pk.Robot.from_urdf(urdf_path)
+        # Load URDF using yourdfpy first, then pass to pyroki
+        urdf = yourdfpy.URDF.load(urdf_path)
+        self.robot = pk.Robot.from_urdf(urdf)
         
         # Find end-effector link indices
         self.L_ee_link_idx = self.robot.links.names.index("openarm_left_hand")
