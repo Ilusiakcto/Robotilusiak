@@ -62,15 +62,15 @@ _V1_ZERO_POSITION = {
 }
 
 # Max position change per step (rad) - prevents sudden jumps
-# J4 needs higher delta to allow bending - it's the elbow!
+# J4 (elbow) needs HIGH delta, wrist needs LOW to prevent spinning
 _MAX_DELTA_PER_STEP = np.array([
     0.08,  # J1 - shoulder
     0.08,  # J2 - shoulder  
     0.08,  # J3 - upper arm rotation
-    0.08,  # J4 - ELBOW BEND - needs to move freely!
-    0.10,  # J5 - wrist
-    0.10,  # J6 - wrist
-    0.10,  # J7 - wrist
+    0.15,  # J4 - ELBOW - high delta for fast bending!
+    0.05,  # J5 - wrist rotation - REDUCED to prevent spinning
+    0.05,  # J6 - wrist pitch - REDUCED
+    0.05,  # J7 - wrist roll - REDUCED
     0.005, # J8 - gripper (meters for V1)
 ], dtype=np.float32)
 
@@ -248,7 +248,7 @@ class OpenArmPyrokiIK:
             )
         )
         
-        # Pose cost for left arm
+        # Pose cost for left arm (position + orientation tracking)
         if target_L is not None:
             costs.append(
                 pk.costs.pose_cost_analytic_jac(
@@ -256,21 +256,8 @@ class OpenArmPyrokiIK:
                     JointVar(0),
                     target_L,
                     jnp.array(self.L_ee_link_idx, dtype=jnp.int32),
-                    pos_weight=100.0,  # Strong target tracking
-                    ori_weight=20.0,
-                )
-            )
-            # Elbow position hint: encourage elbow to be behind/below hand
-            # This creates a "natural" arm pose and forces J4 to bend
-            elbow_hint_L = self._compute_elbow_hint(target_L, side="left")
-            costs.append(
-                pk.costs.pose_cost_analytic_jac(
-                    self.robot,
-                    JointVar(0),
-                    elbow_hint_L,
-                    jnp.array(self.L_elbow_link_idx, dtype=jnp.int32),
-                    pos_weight=30.0,  # Moderate weight - hint, not hard constraint
-                    ori_weight=0.0,   # Don't care about elbow orientation
+                    pos_weight=100.0,  # Strong position tracking
+                    ori_weight=5.0,    # REDUCED orientation - prevents wrist spinning
                 )
             )
         
@@ -282,20 +269,8 @@ class OpenArmPyrokiIK:
                     JointVar(0),
                     target_R,
                     jnp.array(self.R_ee_link_idx, dtype=jnp.int32),
-                    pos_weight=100.0,  # Strong target tracking
-                    ori_weight=20.0,
-                )
-            )
-            # Elbow position hint for right arm
-            elbow_hint_R = self._compute_elbow_hint(target_R, side="right")
-            costs.append(
-                pk.costs.pose_cost_analytic_jac(
-                    self.robot,
-                    JointVar(0),
-                    elbow_hint_R,
-                    jnp.array(self.R_elbow_link_idx, dtype=jnp.int32),
-                    pos_weight=30.0,
-                    ori_weight=0.0,
+                    pos_weight=100.0,  # Strong position tracking
+                    ori_weight=5.0,    # REDUCED orientation - prevents wrist spinning
                 )
             )
         
