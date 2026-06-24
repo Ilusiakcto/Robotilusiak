@@ -328,12 +328,14 @@ class OpenArmPyrokiIK:
     
     def sync(self, joint_positions: np.ndarray, side: str):
         """Sync IK state to actual robot position."""
-        # Convert from motor space to IK space
+        # Convert from motor space to IK/model space
+        # Formula: ik = motor - offset (matches _V1_ZERO_POSITION convention)
+        # When motor=0 (arms down), J4 IK should be ~1.745 (within URDF 0-2.44 limit)
         if side == "right":
             # First 7 joints (skip gripper for now)
-            ik_pos = joint_positions[:7] + RIGHT_JOINT_OFFSETS[:7]
+            ik_pos = joint_positions[:7] - RIGHT_JOINT_OFFSETS[:7]
         else:
-            ik_pos = joint_positions[:7] + LEFT_JOINT_OFFSETS[:7]
+            ik_pos = joint_positions[:7] - LEFT_JOINT_OFFSETS[:7]
         
         # Update relevant joints in q_current
         joint_names = list(self.robot.joints.actuated_names)
@@ -386,9 +388,10 @@ class OpenArmPyrokiIK:
             elif name == "openarm_left_finger_joint1":
                 left_ik[7] = float(q_solved[i])
         
-        # Convert IK space to motor space
-        right_motor = right_ik - RIGHT_JOINT_OFFSETS
-        left_motor = left_ik - LEFT_JOINT_OFFSETS
+        # Convert IK space to motor space: motor = ik + offset
+        # (inverse of sync: ik = motor - offset)
+        right_motor = right_ik + RIGHT_JOINT_OFFSETS
+        left_motor = left_ik + LEFT_JOINT_OFFSETS
         
         # Combine into single array [right[8], left[8]]
         return np.concatenate([right_motor, left_motor])
