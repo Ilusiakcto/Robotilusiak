@@ -22,32 +22,30 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import select
 import socket
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+# Add script directory to path for direct execution
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-try:
-    from .kinematics import OpenArmKinematics
-    from .can_motor import (
-        ArmController,
-        pack_mit,
-        GRIPPER_MOTOR_TYPE,
-        GRIPPER_SEND_ID,
-    )
-except ImportError:
-    from kinematics import OpenArmKinematics
-    from can_motor import (
-        ArmController,
-        pack_mit,
-        GRIPPER_MOTOR_TYPE,
-        GRIPPER_SEND_ID,
-    )
+from kinematics import OpenArmKinematics
+from can_motor import (
+    ArmController,
+    pack_mit,
+    GRIPPER_MOTOR_TYPE,
+    GRIPPER_SEND_ID,
+)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Constants
