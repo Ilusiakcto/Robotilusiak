@@ -231,64 +231,47 @@ class UdpVRInput:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# One Euro Filter (smoothing)
+# One Euro Filter (smoothing) — exact copy from Adamo teleop.py
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def _smoothing_factor(t_e, cutoff):
+    r = 2 * np.pi * cutoff * t_e
+    return r / (r + 1)
+
 
 class OneEuroFilter:
     """
     One Euro Filter for smoothing 3D positions.
-    
-    Provides adaptive low-pass filtering that reduces jitter while
-    maintaining responsiveness during fast movements.
+    Exact implementation from Adamo teleop.py.
     """
 
-    def __init__(
-        self,
-        x0: np.ndarray,
-        min_cutoff: float = 2.25,
-        beta: float = 0.006,
-        d_cutoff: float = 1.0,
-    ):
-        self.min_cutoff = min_cutoff
-        self.beta = beta
-        self.d_cutoff = d_cutoff
-        self.x_prev = x0.copy()
-        self.dx_prev = np.zeros_like(x0)
-        self.t_prev: Optional[float] = None
+    def __init__(self, x0: np.ndarray, min_cutoff=2.25, beta=0.006, d_cutoff=1.0):
+        self.min_cutoff = np.full(x0.shape, min_cutoff)
+        self.beta = np.full(x0.shape, beta)
+        self.d_cutoff = np.full(x0.shape, d_cutoff)
+        self.x_prev = x0.astype(np.float64)
+        self.dx_prev = np.zeros(x0.shape, dtype=np.float64)
+        self.t_prev = None
 
     def __call__(self, x: np.ndarray, t: float) -> np.ndarray:
         if self.t_prev is None:
             self.t_prev = t
+            self.x_prev = x.astype(np.float64)
             return x
-
-        dt = t - self.t_prev
-        if dt <= 0:
+        t_e = t - self.t_prev
+        if t_e <= 0:
             return self.x_prev
-
-        self.t_prev = t
-
-        # Compute derivative
-        dx = (x - self.x_prev) / dt
-
-        # Filter derivative
-        alpha_d = self._alpha(self.d_cutoff, dt)
-        dx_hat = alpha_d * dx + (1 - alpha_d) * self.dx_prev
-
-        # Adaptive cutoff based on derivative magnitude
-        cutoff = self.min_cutoff + self.beta * np.linalg.norm(dx_hat)
-
-        # Filter position
-        alpha = self._alpha(cutoff, dt)
-        x_hat = alpha * x + (1 - alpha) * self.x_prev
-
+        t_e = np.full(x.shape, t_e)
+        a_d = _smoothing_factor(t_e, self.d_cutoff)
+        dx = (x - self.x_prev) / t_e
+        dx_hat = a_d * dx + (1 - a_d) * self.dx_prev
+        cutoff = self.min_cutoff + self.beta * np.abs(dx_hat)
+        a = _smoothing_factor(t_e, cutoff)
+        x_hat = a * x + (1 - a) * self.x_prev
         self.x_prev = x_hat
         self.dx_prev = dx_hat
+        self.t_prev = t
         return x_hat
-
-    @staticmethod
-    def _alpha(cutoff: float, dt: float) -> float:
-        tau = 1.0 / (2 * np.pi * cutoff)
-        return 1.0 / (1.0 + tau / dt)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
