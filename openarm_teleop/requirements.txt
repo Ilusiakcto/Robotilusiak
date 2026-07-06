@@ -1,0 +1,7 @@
+# Python dependencies for OpenArm VR teleop
+# UDP mode (teleop_udp.py) requires only numpy, scipy, placo
+# Adamo mode (teleop.py) additionally requires adamo
+numpy
+scipy
+placo
+# adamo  # Uncomment if using teleop.py (Adamo network mode)
