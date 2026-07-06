@@ -57,12 +57,40 @@ DEFAULT_UDP_PORT = 5006
 GRIPPER_OPEN = -1.0
 GRIPPER_CLOSED = 0.0
 
-# Joint limits (radians) — same as original teleop.py
-JOINT_LIMITS_LOWER = np.array([-2.8, -1.8, -2.8, -1.8, -2.8, -1.8, -2.8])
-JOINT_LIMITS_UPPER = np.array([2.8, 1.8, 2.8, 1.8, 2.8, 1.8, 2.8])
+# ── Exact Adamo constants ──────────────────────────────────────────────
 
-# Homing position (radians)
-HOME_POSITION = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+# Bent-elbow home configs (j4 = elbow bend forward, j2 = 0 keeps arm at side)
+HOME_JOINTS_RIGHT = np.array([0, 0, 0, 1.2, 0, 0, 0])
+HOME_JOINTS_LEFT = np.array([0, 0, 0, 1.2, 0, 0, 0])
+
+# Joint limits from URDF [lower, upper] for each of 7 joints
+JOINT_LIMITS_RIGHT = np.array([
+    [-1.396263, 3.490659],   # j1: base yaw
+    [-0.174533, 3.316125],   # j2: shoulder pitch
+    [-1.570796, 1.570796],   # j3: upper arm rotation
+    [0.0, 2.443461],         # j4: elbow (bends one way only)
+    [-1.570796, 1.570796],   # j5: forearm rotation
+    [-0.785398, 0.785398],   # j6: wrist pitch
+    [-1.570796, 1.570796],   # j7: wrist roll
+])
+JOINT_LIMITS_LEFT = np.array([
+    [-3.490659, 1.396263],
+    [-3.316125, 0.174533],
+    [-1.570796, 1.570796],
+    [0.0, 2.443461],
+    [-1.570796, 1.570796],
+    [-0.785398, 0.785398],
+    [-1.570796, 1.570796],
+])
+
+# ── MID TUNING: halfway between normal and pong ──
+DLS_LAMBDA_MAX = 0.035     # Mid damping (normal 0.05, pong 0.02)
+DLS_SIGMA_THRESH = 0.04    # Mid singularity threshold (normal 0.05, pong 0.03)
+NULL_SPACE_GAIN = 0.35     # Mid pull toward home (normal 0.5, pong 0.2)
+IK_SUB_ITERS = 3           # Sub-iterations per control cycle
+ORIENT_WEIGHT = 0.225      # Mid orientation priority (normal 0.3, pong 0.15)
+JOINT_LIMIT_K = 10.0       # Joint-limit avoidance gain (unchanged)
+MANIP_GAIN = 0.0           # Disabled (unchanged)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -275,162 +303,237 @@ class OneEuroFilter:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# IK Controller (DLS with joint limit avoidance)
+# IK Helper Functions — exact copy from Adamo teleop.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _quat_to_yaw(q):
+    """Extract yaw (rotation around WebXR Y axis) from quaternion [w, x, y, z]."""
+    w, x, y, z = q
+    forward_x = -2.0 * (x * z + w * y)
+    forward_z = 2.0 * (x * x + y * y) - 1.0
+    return np.arctan2(forward_x, -forward_z)
+
+
+def _to_calibrated_space(p_controller, calib_yaw):
+    """Transform controller position from local-floor to calibrated space."""
+    c, s = np.cos(calib_yaw), np.sin(calib_yaw)
+    R_inv = np.array([[ c, 0,  s],
+                      [ 0, 1,  0],
+                      [-s, 0,  c]])
+    return R_inv @ p_controller
+
+
+def _quat_to_rotation_matrix(q):
+    """Convert quaternion [w, x, y, z] to 3x3 rotation matrix."""
+    w, x, y, z = q
+    return np.array([
+        [1 - 2*(y*y + z*z), 2*(x*y - w*z),     2*(x*z + w*y)],
+        [2*(x*y + w*z),     1 - 2*(x*x + z*z), 2*(y*z - w*x)],
+        [2*(x*z - w*y),     2*(y*z + w*x),     1 - 2*(x*x + y*y)],
+    ])
+
+
+def _skew(v):
+    """Skew-symmetric matrix for cross product: skew(a) @ b = a x b."""
+    return np.array([[0, -v[2], v[1]],
+                     [v[2], 0, -v[0]],
+                     [-v[1], v[0], 0]])
+
+
+def _ee_jacobian(J_full, ee_pos):
+    """Convert spatial Jacobian to body Jacobian at EE (6xN)."""
+    J_pos = J_full[:3, :] - _skew(ee_pos) @ J_full[3:, :]
+    J_ang = J_full[3:, :]
+    return np.vstack([J_pos, J_ang])
+
+
+def _orientation_error(R_desired, R_current):
+    """Compute orientation error as a 3-vector (axis-angle-like)."""
+    R_err = R_desired @ R_current.T
+    return 0.5 * np.array([
+        R_err[2, 1] - R_err[1, 2],
+        R_err[0, 2] - R_err[2, 0],
+        R_err[1, 0] - R_err[0, 1],
+    ])
+
+
+def _vr_orientation_to_robot(vr_quat, calib_yaw):
+    """Transform VR controller orientation to robot frame."""
+    R_ctrl = _quat_to_rotation_matrix(vr_quat)
+    c, s = np.cos(calib_yaw), np.sin(calib_yaw)
+    R_calib_inv = np.array([[ c, 0,  s],
+                             [ 0, 1,  0],
+                             [-s, 0,  c]])
+    R_hfs = R_calib_inv @ R_ctrl
+    R_webxr_to_robot = np.array([[ 0, 0, -1],
+                                  [-1, 0,  0],
+                                  [ 0, 1,  0]], dtype=np.float64)
+    return R_webxr_to_robot @ R_hfs
+
+
+def _joint_limit_weights(q, joint_limits, k=JOINT_LIMIT_K):
+    """Compute per-joint weights that increase near joint limits."""
+    q_mid = 0.5 * (joint_limits[:, 0] + joint_limits[:, 1])
+    q_half_range = 0.5 * (joint_limits[:, 1] - joint_limits[:, 0])
+    q_half_range = np.maximum(q_half_range, 1e-6)
+    normalized = (q - q_mid) / q_half_range
+    normalized = np.clip(normalized, -1.0, 1.0)
+    return 1.0 + k * normalized**4
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IK Controller — exact copy from Adamo teleop.py
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ArmIKController:
-    """
-    Damped Least Squares IK controller with adaptive damping and joint limits.
-    
-    This is the same IK approach as the original Adamo teleop.py.
+    """Damped least-squares IK controller with orientation tracking.
+    Exact implementation from Adamo teleop.py.
     """
 
     def __init__(
         self,
         kinematics: OpenArmKinematics,
-        side: str = "right",
+        side: str = "left",
         position_scale: float = 1.0,
         max_joint_velocity: float = 2.0,
-        damping: float = 0.05,
     ):
         self.kin = kinematics
         self.side = side
         self.position_scale = position_scale
         self.max_joint_velocity = max_joint_velocity
-        self.damping = damping
+        self.vr_origin: Optional[np.ndarray] = None
+        self.home_joints = HOME_JOINTS_LEFT if side == "left" else HOME_JOINTS_RIGHT
+        self.joint_limits = JOINT_LIMITS_LEFT if side == "left" else JOINT_LIMITS_RIGHT
+        self._home_ee_pos: Optional[np.ndarray] = None
+        self._home_ee_rot: Optional[np.ndarray] = None
+        self._vr_orient_ref: Optional[np.ndarray] = None
+        self._calib_yaw: Optional[float] = None
+        self._current_joints: Optional[np.ndarray] = None
+        self._debug_count = 0
 
-        self.q: Optional[np.ndarray] = None
-        self.origin_pos: Optional[np.ndarray] = None
-        self.origin_rot: Optional[Rotation] = None
-        self.calib_yaw: float = 0.0
-        self.calibrated = False
+    def calibrate(self, joint_pos: np.ndarray, vr_position: np.ndarray,
+                  vr_orientation: Optional[np.ndarray] = None,
+                  calib_yaw: Optional[float] = None):
+        self._current_joints = joint_pos.copy()
+        self.vr_origin = vr_position.copy()
+        self._calib_yaw = calib_yaw
+        ee_pose = self.kin.forward_kinematics(joint_pos)
+        self._home_ee_pos = ee_pose[:3, 3].copy()
+        self._home_ee_rot = ee_pose[:3, :3].copy()
+        if vr_orientation is not None and calib_yaw is not None:
+            self._vr_orient_ref = _vr_orientation_to_robot(vr_orientation, calib_yaw)
+        else:
+            self._vr_orient_ref = None
+        self._debug_count = 0
+        print(f"  [{self.side}] VR origin: {np.round(vr_position, 4)}")
+        print(f"  [{self.side}] Calibrated joints: {np.round(joint_pos, 3)}")
+        print(f"  [{self.side}] Calibrated EE pos: ({self._home_ee_pos[0]:.4f}, "
+              f"{self._home_ee_pos[1]:.4f}, {self._home_ee_pos[2]:.4f})")
+        print(f"  [{self.side}] Orientation tracking: "
+              f"{'ON' if self._vr_orient_ref is not None else 'OFF'}")
 
-    def calibrate(
-        self,
-        current_joints: np.ndarray,
-        vr_position: np.ndarray,
-        vr_orientation: np.ndarray,
-        calib_yaw: float,
-    ) -> None:
-        """
-        Calibrate IK to current robot state and VR pose.
-        
-        This captures the VR origin so movements are relative.
-        """
-        self.q = current_joints.copy()
-        self.origin_pos = vr_position.copy()
-        self.origin_rot = Rotation.from_quat([
-            vr_orientation[1],  # qx
-            vr_orientation[2],  # qy
-            vr_orientation[3],  # qz
-            vr_orientation[0],  # qw
-        ])
-        self.calib_yaw = calib_yaw
-        self.calibrated = True
-        print(f"[IK:{self.side}] Calibrated at joints={np.degrees(current_joints)}")
-
-    def compute(
-        self,
-        vr_position: np.ndarray,
-        dt: float,
-        vr_orientation: np.ndarray,
-    ) -> Optional[np.ndarray]:
-        """
-        Compute joint command given VR pose.
-        
-        Returns joint positions or None if not calibrated.
-        """
-        if not self.calibrated or self.q is None:
+    def compute(self, vr_position: np.ndarray, dt: float,
+                vr_orientation: Optional[np.ndarray] = None) -> Optional[np.ndarray]:
+        if self._home_ee_pos is None or vr_position is None:
             return None
 
-        # Relative position from calibration origin
-        delta_pos = (vr_position - self.origin_pos) * self.position_scale
+        # -- Target pose --
+        vr_delta = (vr_position - self.vr_origin) * self.position_scale
+        robot_delta = np.array([-vr_delta[2], -vr_delta[0], vr_delta[1]])
+        target_pos = self._home_ee_pos + robot_delta
 
-        # Get current end-effector pose
-        T_current = self.kin.forward_kinematics(self.q)
-        p_current = T_current[:3, 3]
+        has_orient = (vr_orientation is not None and self._calib_yaw is not None
+                      and self._vr_orient_ref is not None)
+        R_target = None
+        if has_orient:
+            R_vr_now = _vr_orientation_to_robot(vr_orientation, self._calib_yaw)
+            R_delta_world = R_vr_now @ self._vr_orient_ref.T
+            R_target = R_delta_world @ self._home_ee_rot
 
-        # Target position
-        p_target = p_current + delta_pos
-        self.origin_pos = vr_position.copy()  # Update origin for next frame
+        # -- Sub-iterations: multiple IK solves per control cycle --
+        sub_dt = dt / IK_SUB_ITERS
+        for _ in range(IK_SUB_ITERS):
+            current_ee = self.kin.forward_kinematics(self._current_joints)
+            current_pos = current_ee[:3, 3]
+            current_rot = current_ee[:3, :3]
 
-        # Target orientation from VR
-        vr_rot = Rotation.from_quat([
-            vr_orientation[1],
-            vr_orientation[2],
-            vr_orientation[3],
-            vr_orientation[0],
-        ])
-        rel_rot = self.origin_rot.inv() * vr_rot
-        self.origin_rot = vr_rot
+            J_full = self.kin.get_jacobian(self._current_joints)
+            pos_error = target_pos - current_pos
 
-        R_current = T_current[:3, :3]
-        R_target = R_current @ rel_rot.as_matrix()
+            if has_orient:
+                orient_error = _orientation_error(R_target, current_rot)
+                error = np.concatenate([pos_error, ORIENT_WEIGHT * orient_error])
+                J = _ee_jacobian(J_full, current_pos)
+                J[3:, :] *= ORIENT_WEIGHT
+                task_dim = 6
+            else:
+                error = pos_error
+                J = _ee_jacobian(J_full, current_pos)[:3, :]
+                task_dim = 3
 
-        # Build target transform
-        T_target = np.eye(4)
-        T_target[:3, :3] = R_target
-        T_target[:3, 3] = p_target
+            # Adaptive damping
+            svs = np.linalg.svd(J, compute_uv=False)
+            sigma_min = svs[-1] if len(svs) > 0 else 0.0
+            if sigma_min < DLS_SIGMA_THRESH:
+                lam = DLS_LAMBDA_MAX * (1.0 - (sigma_min / DLS_SIGMA_THRESH)**2)
+            else:
+                lam = 0.0
 
-        # Solve IK
-        q_new = self._solve_ik(T_target, dt)
-        if q_new is not None:
-            self.q = q_new
+            # Joint-limit weighting
+            w = _joint_limit_weights(self._current_joints, self.joint_limits)
+            w_inv = 1.0 / w
 
-        return self.q.copy()
+            # Weighted DLS
+            JWinv = J * w_inv[np.newaxis, :]
+            JWinvJT = JWinv @ J.T
+            reg = lam**2 * np.eye(task_dim) if lam > 0 else 1e-10 * np.eye(task_dim)
+            A_inv = np.linalg.solve(JWinvJT + reg, np.eye(task_dim))
+            J_pinv = (J.T @ A_inv) * w_inv[:, np.newaxis]
+            dq_task = J_pinv @ error
 
-    def _solve_ik(self, T_target: np.ndarray, dt: float) -> Optional[np.ndarray]:
-        """Damped least squares IK solver."""
-        q = self.q.copy()
-
-        for _ in range(5):  # Iterations
-            T_current = self.kin.forward_kinematics(q)
-
-            # Position error
-            p_err = T_target[:3, 3] - T_current[:3, 3]
-
-            # Orientation error (axis-angle)
-            R_err = T_target[:3, :3] @ T_current[:3, :3].T
-            r = Rotation.from_matrix(R_err)
-            rotvec = r.as_rotvec()
-
-            # Task-space error
-            err = np.concatenate([p_err, rotvec])
-            if np.linalg.norm(err) < 1e-4:
-                break
-
-            # Jacobian
-            J = self.kin.get_jacobian(q)
-
-            # Damped least squares
-            JJT = J @ J.T
-            damping_matrix = (self.damping ** 2) * np.eye(6)
-            dq = J.T @ np.linalg.solve(JJT + damping_matrix, err)
-
-            # Joint limit avoidance (gradient)
-            margin = 0.1
-            grad = np.zeros(7)
-            for i in range(7):
-                if q[i] < JOINT_LIMITS_LOWER[i] + margin:
-                    grad[i] = JOINT_LIMITS_LOWER[i] + margin - q[i]
-                elif q[i] > JOINT_LIMITS_UPPER[i] - margin:
-                    grad[i] = JOINT_LIMITS_UPPER[i] - margin - q[i]
-
-            # Null-space projection
-            J_pinv = J.T @ np.linalg.inv(JJT + damping_matrix)
+            # Error-gated null-space
+            err_norm = np.linalg.norm(pos_error)
+            ns_scale = np.exp(-50.0 * err_norm**2)
             null_proj = np.eye(7) - J_pinv @ J
-            dq += 0.5 * null_proj @ grad
+            dq_null_home = ns_scale * NULL_SPACE_GAIN * (self.home_joints - self._current_joints)
 
-            # Velocity limiting
-            dq_max = self.max_joint_velocity * dt
-            dq = np.clip(dq, -dq_max, dq_max)
+            # Manipulability gradient (disabled by default)
+            dq_null_manip = np.zeros(7)
 
-            q = q + dq
+            dq = dq_task + null_proj @ (dq_null_home + MANIP_GAIN * dq_null_manip)
 
-            # Clamp to joint limits
-            q = np.clip(q, JOINT_LIMITS_LOWER, JOINT_LIMITS_UPPER)
+            # Velocity limit per sub-iteration
+            max_step = self.max_joint_velocity * sub_dt
+            max_abs = np.max(np.abs(dq))
+            if max_abs > max_step:
+                dq *= max_step / max_abs
 
-        return q
+            self._current_joints = self._current_joints + dq
+
+            # Hard clamp
+            self._current_joints = np.clip(
+                self._current_joints,
+                self.joint_limits[:, 0],
+                self.joint_limits[:, 1],
+            )
+
+        # -- Debug logging --
+        self._debug_count += 1
+        if self._debug_count <= 10 or self._debug_count % 60 == 0:
+            cond = svs[0] / svs[-1] if svs[-1] > 1e-10 else float('inf')
+            print(f"  [{self.side}] #{self._debug_count}: "
+                  f"err_pos={np.round(pos_error, 4)} "
+                  f"sigma_min={sigma_min:.4f} lam={lam:.4f} "
+                  f"ns={ns_scale:.3f} cond={cond:.1f} "
+                  f"joints={np.round(self._current_joints, 3)}",
+                  flush=True)
+
+        return self._current_joints.copy()
+
+    def reset(self, joint_pos: np.ndarray, vr_position: np.ndarray,
+              vr_orientation: Optional[np.ndarray] = None,
+              calib_yaw: Optional[float] = None):
+        self.calibrate(joint_pos, vr_position, vr_orientation, calib_yaw)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -545,8 +648,6 @@ def main() -> None:
                         help="Motor position gain (0-500)")
     parser.add_argument("--motor-kd", type=float, default=1.0,
                         help="Motor damping gain (0-5)")
-    parser.add_argument("--smoothing", type=float, default=0.15,
-                        help="Joint command smoothing (0=none, 1=max)")
     parser.add_argument("--position-scale", type=float, default=1.0,
                         help="Scale factor for VR position")
     parser.add_argument("--max-joint-velocity", type=float, default=2.0,
@@ -729,13 +830,10 @@ def main() -> None:
                     right_cs = right_euro(right_cs, t)
                 cmd = right_ik.compute(right_cs, dt, right_vr.orientation)
                 if cmd is not None:
-                    # Exponential smoothing on joint commands
-                    alpha = 1.0 - args.smoothing
-                    smoothed_cmd = alpha * cmd + (1.0 - alpha) * right_joints
                     right_arm.set_joint_positions(
-                        smoothed_cmd, kp=args.motor_kp, kd=args.motor_kd,
+                        cmd, kp=args.motor_kp, kd=args.motor_kd,
                         process_responses=False)
-                    right_joints = smoothed_cmd.copy()
+                    right_joints = cmd.copy()
                 right_arm._process_responses()
 
             # Left arm
@@ -745,13 +843,10 @@ def main() -> None:
                     left_cs = left_euro(left_cs, t)
                 cmd = left_ik.compute(left_cs, dt, left_vr.orientation)
                 if cmd is not None:
-                    # Exponential smoothing on joint commands
-                    alpha = 1.0 - args.smoothing
-                    smoothed_cmd = alpha * cmd + (1.0 - alpha) * left_joints
                     left_arm.set_joint_positions(
-                        smoothed_cmd, kp=args.motor_kp, kd=args.motor_kd,
+                        cmd, kp=args.motor_kp, kd=args.motor_kd,
                         process_responses=False)
-                    left_joints = smoothed_cmd.copy()
+                    left_joints = cmd.copy()
                 left_arm._process_responses()
 
             # Grippers (trigger: 0→open, 1→closed)
