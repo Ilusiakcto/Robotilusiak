@@ -245,8 +245,8 @@ class OneEuroFilter:
     def __init__(
         self,
         x0: np.ndarray,
-        min_cutoff: float = 1.0,
-        beta: float = 0.007,
+        min_cutoff: float = 2.25,
+        beta: float = 0.006,
         d_cutoff: float = 1.0,
     ):
         self.min_cutoff = min_cutoff
@@ -558,10 +558,12 @@ def main() -> None:
                         help="UDP port to listen on")
     parser.add_argument("--rate", type=float, default=100.0,
                         help="Control loop rate in Hz")
-    parser.add_argument("--motor-kp", type=float, default=10.0,
-                        help="Motor position gain")
+    parser.add_argument("--motor-kp", type=float, default=35.0,
+                        help="Motor position gain (0-500)")
     parser.add_argument("--motor-kd", type=float, default=1.0,
-                        help="Motor velocity gain")
+                        help="Motor damping gain (0-5)")
+    parser.add_argument("--smoothing", type=float, default=0.15,
+                        help="Joint command smoothing (0=none, 1=max)")
     parser.add_argument("--position-scale", type=float, default=1.0,
                         help="Scale factor for VR position")
     parser.add_argument("--max-joint-velocity", type=float, default=2.0,
@@ -744,10 +746,13 @@ def main() -> None:
                     right_cs = right_euro(right_cs, t)
                 cmd = right_ik.compute(right_cs, dt, right_vr.orientation)
                 if cmd is not None:
+                    # Exponential smoothing on joint commands
+                    alpha = 1.0 - args.smoothing
+                    smoothed_cmd = alpha * cmd + (1.0 - alpha) * right_joints
                     right_arm.set_joint_positions(
-                        cmd, kp=args.motor_kp, kd=args.motor_kd,
+                        smoothed_cmd, kp=args.motor_kp, kd=args.motor_kd,
                         process_responses=False)
-                    right_joints = cmd.copy()
+                    right_joints = smoothed_cmd.copy()
                 right_arm._process_responses()
 
             # Left arm
@@ -757,10 +762,13 @@ def main() -> None:
                     left_cs = left_euro(left_cs, t)
                 cmd = left_ik.compute(left_cs, dt, left_vr.orientation)
                 if cmd is not None:
+                    # Exponential smoothing on joint commands
+                    alpha = 1.0 - args.smoothing
+                    smoothed_cmd = alpha * cmd + (1.0 - alpha) * left_joints
                     left_arm.set_joint_positions(
-                        cmd, kp=args.motor_kp, kd=args.motor_kd,
+                        smoothed_cmd, kp=args.motor_kp, kd=args.motor_kd,
                         process_responses=False)
-                    left_joints = cmd.copy()
+                    left_joints = smoothed_cmd.copy()
                 left_arm._process_responses()
 
             # Grippers (trigger: 0→open, 1→closed)
