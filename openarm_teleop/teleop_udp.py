@@ -32,13 +32,22 @@ from typing import Optional
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from .kinematics import OpenArmKinematics
-from .can_motor import (
-    ArmController,
-    pack_mit,
-    GRIPPER_MOTOR_TYPE,
-    GRIPPER_SEND_ID,
-)
+try:
+    from .kinematics import OpenArmKinematics
+    from .can_motor import (
+        ArmController,
+        pack_mit,
+        GRIPPER_MOTOR_TYPE,
+        GRIPPER_SEND_ID,
+    )
+except ImportError:
+    from kinematics import OpenArmKinematics
+    from can_motor import (
+        ArmController,
+        pack_mit,
+        GRIPPER_MOTOR_TYPE,
+        GRIPPER_SEND_ID,
+    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Constants
