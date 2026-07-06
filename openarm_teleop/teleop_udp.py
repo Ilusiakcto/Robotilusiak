@@ -54,8 +54,8 @@ from can_motor import (
 DEFAULT_UDP_HOST = "0.0.0.0"
 DEFAULT_UDP_PORT = 5006
 
-GRIPPER_OPEN = 0.0
-GRIPPER_CLOSED = 1.5
+GRIPPER_OPEN = -1.0
+GRIPPER_CLOSED = 0.0
 
 # Joint limits (radians) — same as original teleop.py
 JOINT_LIMITS_LOWER = np.array([-2.8, -1.8, -2.8, -1.8, -2.8, -1.8, -2.8])
