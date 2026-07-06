@@ -417,7 +417,7 @@ class ArmIKController:
                 break
 
             # Jacobian
-            J = self.kin.jacobian(q)
+            J = self.kin.get_jacobian(q)
 
             # Damped least squares
             JJT = J @ J.T
