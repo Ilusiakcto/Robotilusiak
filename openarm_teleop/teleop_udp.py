@@ -41,7 +41,7 @@ from scipy.spatial.transform import Rotation
 
 from kinematics import OpenArmKinematics
 from can_motor import (
-    ArmController,
+    OpenArmCAN,
     pack_mit,
     GRIPPER_MOTOR_TYPE,
     GRIPPER_SEND_ID,
@@ -523,7 +523,7 @@ def _to_calibrated_space(pos: np.ndarray, calib_yaw: float) -> np.ndarray:
 
 
 def _latest_joint_positions_for_reset(
-    arm: Optional[ArmController],
+    arm: Optional[OpenArmCAN],
     fallback: Optional[np.ndarray],
     side: str,
 ) -> Optional[np.ndarray]:
@@ -531,7 +531,7 @@ def _latest_joint_positions_for_reset(
     if arm is None:
         return fallback
     try:
-        positions = arm.get_joint_positions()
+        positions = arm.get_positions()
         if positions is not None:
             print(f"[{side}] Got current joints: {np.degrees(positions)}")
             return positions
@@ -587,16 +587,16 @@ def main() -> None:
     left_kin = OpenArmKinematics(side="left") if use_left else None
 
     # Initialize arm controllers
-    right_arm: Optional[ArmController] = None
-    left_arm: Optional[ArmController] = None
+    right_arm: Optional[OpenArmCAN] = None
+    left_arm: Optional[OpenArmCAN] = None
 
     if use_right:
-        right_arm = ArmController(args.right_can, side="right")
+        right_arm = OpenArmCAN(args.right_can)
         right_arm.enable_all()
         print("[Right] Arm enabled")
 
     if use_left:
-        left_arm = ArmController(args.left_can, side="left")
+        left_arm = OpenArmCAN(args.left_can)
         left_arm.enable_all()
         print("[Left] Arm enabled")
 
