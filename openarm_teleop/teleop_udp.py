@@ -583,8 +583,11 @@ def main() -> None:
     print(f"  Rate: {args.rate} Hz")
 
     # Initialize kinematics
-    right_kin = OpenArmKinematics(side="right") if use_right else None
-    left_kin = OpenArmKinematics(side="left") if use_left else None
+    # URDF path relative to this script
+    urdf_path = os.path.join(_SCRIPT_DIR, "urdf", "openarm_bimanual_abs.urdf")
+    
+    right_kin = OpenArmKinematics(urdf_path, arm_prefix="openarm_right_") if use_right else None
+    left_kin = OpenArmKinematics(urdf_path, arm_prefix="openarm_left_") if use_left else None
 
     # Initialize arm controllers
     right_arm: Optional[OpenArmCAN] = None
