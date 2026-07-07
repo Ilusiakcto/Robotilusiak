@@ -396,11 +396,13 @@ class ArmIKController:
         side: str = "left",
         position_scale: float = 1.0,
         max_joint_velocity: float = 2.0,
+        mirror: bool = False,
     ):
         self.kin = kinematics
         self.side = side
         self.position_scale = position_scale
         self.max_joint_velocity = max_joint_velocity
+        self.mirror = mirror
         self.vr_origin: Optional[np.ndarray] = None
         self.home_joints = HOME_JOINTS_LEFT if side == "left" else HOME_JOINTS_RIGHT
         self.joint_limits = JOINT_LIMITS_LEFT if side == "left" else JOINT_LIMITS_RIGHT
@@ -439,7 +441,10 @@ class ArmIKController:
 
         # -- Target pose --
         vr_delta = (vr_position - self.vr_origin) * self.position_scale
-        robot_delta = np.array([-vr_delta[2], -vr_delta[0], vr_delta[1]])
+        # WebXR -> Robot: X=forward(-Z), Y=left(-X), Z=up(+Y)
+        # Mirror flips left/right (Y axis in robot frame)
+        mirror_sign = -1.0 if self.mirror else 1.0
+        robot_delta = np.array([-vr_delta[2], mirror_sign * -vr_delta[0], vr_delta[1]])
         target_pos = self._home_ee_pos + robot_delta
 
         has_orient = (vr_orientation is not None and self._calib_yaw is not None
@@ -652,6 +657,8 @@ def main() -> None:
                         help="Scale factor for VR position")
     parser.add_argument("--max-joint-velocity", type=float, default=2.0,
                         help="Max joint velocity in rad/s")
+    parser.add_argument("--mirror", action="store_true",
+                        help="Mirror left/right controls (for viewing robot from front)")
     args = parser.parse_args()
 
     if args.right_can is None and args.left_can is None:
@@ -708,12 +715,14 @@ def main() -> None:
             right_kin, side="right",
             position_scale=args.position_scale,
             max_joint_velocity=args.max_joint_velocity,
+            mirror=args.mirror,
         )
     if use_left:
         left_ik = ArmIKController(
             left_kin, side="left",
             position_scale=args.position_scale,
             max_joint_velocity=args.max_joint_velocity,
+            mirror=args.mirror,
         )
 
     calibrated = False
@@ -744,6 +753,7 @@ def main() -> None:
                 right_kin, side="right",
                 position_scale=args.position_scale,
                 max_joint_velocity=args.max_joint_velocity,
+                mirror=args.mirror,
             )
         if use_left:
             left_joints = _latest_joint_positions_for_reset(left_arm, left_joints, "left")
@@ -751,6 +761,7 @@ def main() -> None:
                 left_kin, side="left",
                 position_scale=args.position_scale,
                 max_joint_velocity=args.max_joint_velocity,
+                mirror=args.mirror,
             )
 
         got_right = (not use_right or
