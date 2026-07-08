@@ -118,14 +118,39 @@ class MJPEGHandler(BaseHTTPRequestHandler):
 <head>
     <title>OpenArm Camera</title>
     <style>
-        body { margin: 0; background: #1a1a2e; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        img { max-width: 100%; max-height: 100vh; border: 2px solid #4a4a6a; }
-        .info { position: fixed; top: 10px; left: 10px; color: #aaa; font-family: monospace; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        #container { position: relative; }
+        img { display: block; max-width: 100vw; max-height: 100vh; cursor: pointer; }
+        #controls { position: fixed; bottom: 20px; display: flex; gap: 10px; opacity: 0.7; }
+        #controls:hover { opacity: 1; }
+        button { background: #333; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #555; }
+        .info { position: fixed; top: 10px; left: 10px; color: #0f0; font-family: monospace; font-size: 14px; }
+        :fullscreen img, ::backdrop { background: #000; }
     </style>
 </head>
 <body>
-    <div class="info">OpenArm Camera Stream</div>
-    <img src="/stream" />
+    <div class="info">OpenArm Camera - Press F for fullscreen</div>
+    <div id="container">
+        <img id="video" src="/stream" onclick="toggleFullscreen()" />
+    </div>
+    <div id="controls">
+        <button onclick="toggleFullscreen()">Fullscreen (F)</button>
+    </div>
+    <script>
+        function toggleFullscreen() {
+            const container = document.getElementById('container');
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                container.requestFullscreen();
+            }
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+        });
+    </script>
 </body>
 </html>'''
             self.wfile.write(html)
