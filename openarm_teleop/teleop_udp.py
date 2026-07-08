@@ -618,17 +618,31 @@ def _latest_joint_positions_for_reset(
     fallback: Optional[np.ndarray],
     side: str,
 ) -> Optional[np.ndarray]:
-    """Get current joint positions from arm or use fallback."""
+    """Get current joint positions from arm or use fallback (exact Adamo logic)."""
     if arm is None:
-        return fallback
+        return None
+
     try:
-        positions = arm.get_positions()
-        if positions is not None:
-            print(f"[{side}] Got current joints: {np.degrees(positions)}")
-            return positions
-    except Exception as e:
-        print(f"[{side}] Failed to read joints: {e}")
-    return fallback if fallback is not None else HOME_POSITION.copy()
+        for state in arm.states[:7]:
+            state.valid = False
+        arm.refresh()
+        n_valid = sum(1 for state in arm.states[:7] if state.valid)
+        if n_valid == 7:
+            return arm.get_positions()
+        if fallback is not None:
+            print(f"  [{side}] Reset using last commanded joints "
+                  f"({n_valid}/7 current motor states valid)", flush=True)
+            return fallback.copy()
+        print(f"  [{side}] Reset cannot read joints "
+              f"({n_valid}/7 current motor states valid)", flush=True)
+        return None
+    except Exception as exc:
+        if fallback is not None:
+            print(f"  [{side}] Reset joint refresh failed ({exc}); "
+                  "using last commanded joints", flush=True)
+            return fallback.copy()
+        print(f"  [{side}] Reset joint refresh failed: {exc}", flush=True)
+        return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
