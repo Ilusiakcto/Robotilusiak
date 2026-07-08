@@ -837,11 +837,17 @@ def main() -> None:
                     if right_ik and right_vr.position is not None:
                         right_cs = _to_calibrated_space(right_vr.position, calib_yaw)
                         right_euro = OneEuroFilter(right_cs)
-                        right_ik.calibrate(right_joints, right_cs, right_vr.orientation, calib_yaw)
+                        # Use HOME_JOINTS if current joints unavailable
+                        calib_joints = right_joints if right_joints is not None else HOME_JOINTS_RIGHT.copy()
+                        right_ik.calibrate(calib_joints, right_cs, right_vr.orientation, calib_yaw)
+                        right_joints = calib_joints
                     if left_ik and left_vr.position is not None:
                         left_cs = _to_calibrated_space(left_vr.position, calib_yaw)
                         left_euro = OneEuroFilter(left_cs)
-                        left_ik.calibrate(left_joints, left_cs, left_vr.orientation, calib_yaw)
+                        # Use HOME_JOINTS if current joints unavailable
+                        calib_joints = left_joints if left_joints is not None else HOME_JOINTS_LEFT.copy()
+                        left_ik.calibrate(calib_joints, left_cs, left_vr.orientation, calib_yaw)
+                        left_joints = calib_joints
                     calibrated = True
                     print(f"Calibrated — VR teleop active (calib yaw={np.degrees(calib_yaw):.1f}°)", flush=True)
                 else:
