@@ -119,33 +119,28 @@ class MJPEGHandler(BaseHTTPRequestHandler):
     <title>OpenArm Camera</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        #container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        img { display: block; max-width: 100vw; max-height: 100vh; cursor: pointer; object-fit: contain; }
-        #controls { position: fixed; bottom: 20px; display: flex; gap: 10px; opacity: 0.7; z-index: 100; }
+        html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+        body { display: flex; align-items: center; justify-content: center; }
+        img { width: 100vw; height: 100vh; object-fit: contain; cursor: pointer; }
+        #controls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; opacity: 0.7; z-index: 100; }
         #controls:hover { opacity: 1; }
         button { background: #333; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; }
         button:hover { background: #555; }
         .info { position: fixed; top: 10px; left: 10px; color: #0f0; font-family: monospace; font-size: 14px; z-index: 100; }
-        #container:fullscreen { background: #000; width: 100vw; height: 100vh; }
-        #container:fullscreen img { max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
     </style>
 </head>
 <body>
     <div class="info">OpenArm Camera - Press F for fullscreen</div>
-    <div id="container">
-        <img id="video" src="/stream" onclick="toggleFullscreen()" />
-    </div>
+    <img id="video" src="/stream" onclick="toggleFullscreen()" />
     <div id="controls">
         <button onclick="toggleFullscreen()">Fullscreen (F)</button>
     </div>
     <script>
         function toggleFullscreen() {
-            const container = document.getElementById('container');
             if (document.fullscreenElement) {
                 document.exitFullscreen();
             } else {
-                container.requestFullscreen();
+                document.documentElement.requestFullscreen();
             }
         }
         document.addEventListener('keydown', (e) => {
