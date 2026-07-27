@@ -65,16 +65,15 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install Python packages
-pip install dora-rs
-pip install -e dora-openarm-data-collection/nodes/dora-openarm-kinematics[pyroki]
+pip install -r openarm_teleop/requirements.txt
 ```
 
 ### Step 3: Setup CAN Interfaces (Ireland PC)
 
 ```bash
-# Setup CAN interfaces
-sudo ip link set can0 up type can bitrate 1000000
-sudo ip link set can1 up type can bitrate 1000000
+# Make script executable and run
+chmod +x openarm_teleop/reinit_can.sh
+sudo bash openarm_teleop/reinit_can.sh
 
 # Verify interfaces are up
 ip link show can0
@@ -83,35 +82,44 @@ ip link show can1
 
 ### Step 4: Configure IP Addresses
 
-**On Kenya PC**, create `.env` file in the `dora-openarm-data-collection` folder:
-
-```bash
-# Copy template
-cp .env.example .env
-
-# Edit .env and set Ireland's Tailscale IP
-UDP_RELAY_REMOTE_HOST=100.82.113.60  # Replace with Ireland's actual Tailscale IP
-```
-
 **Example IPs:**
 | Location | Tailscale IP | Local WiFi IP | Role |
 |----------|--------------|---------------|------|
 | Kenya PC | 100.85.255.15 | 192.168.1.129 | UDP Relay |
 | Ireland PC | 100.82.113.60 | — | Robot Controller |
 
-### Step 5: Start Ireland Pipeline
+### Step 5: Start Ireland Teleop
 
 ```bash
-cd openarm_teleoperation/dora-openarm-data-collection
-source ../.venv/bin/activate
-dora run dataflow-vr-real-v1.yaml --uv
+cd openarm_teleoperation
+source .venv/bin/activate
+
+# Run teleop with both arms
+python -m openarm_teleop.teleop_udp \
+  --left-can can0 \
+  --right-can can1 \
+  --max-joint-velocity 1.0
 ```
+
+**CLI Options:**
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--left-can` | — | CAN interface for left arm (e.g., `can0`) |
+| `--right-can` | — | CAN interface for right arm (e.g., `can1`) |
+| `--max-joint-velocity` | `2.0` | Max joint speed in rad/s (lower = smoother) |
+| `--motor-kp` | `35.0` | Motor position gain |
+| `--motor-kd` | `1.0` | Motor damping gain |
+| `--mirror` | off | Mirror controls (when viewing robot from front) |
+| `--clutch` | off | Robot only moves while trigger is held |
 
 ### Step 6: Start Kenya UDP Relay
 
 ```bash
-cd dora-openarm-data-collection
-python udp_relay.py
+cd openarm_teleoperation
+python -m openarm_teleop.udp_relay --remote-host <ireland-tailscale-ip>
+
+# Example:
+python -m openarm_teleop.udp_relay --remote-host 100.82.113.60
 ```
 
 **Expected output:**
@@ -208,11 +216,11 @@ dora run dataflow-vr-mujoco-v1.yaml --uv
 
 1. Verify Tailscale is connected: `tailscale status`
 2. Ping Ireland: `ping <ireland-tailscale-ip>`
-3. Check `.env` has correct IP: `UDP_RELAY_REMOTE_HOST=<ireland-tailscale-ip>`
+3. Check relay command has correct IP: `--remote-host <ireland-tailscale-ip>`
 
 ### Ireland Not Receiving Data
 
-1. Check dataflow is running: `dora list`
+1. Check teleop is running and listening on port 5006
 2. Verify CAN interfaces: `ip link show can0`
 3. Check firewall: `sudo ufw allow 5006/udp`
 
@@ -251,19 +259,19 @@ sudo ip link set can1 up type can bitrate 1000000
 ipconfig  # Windows
 
 # Start UDP relay
-cd dora-openarm-data-collection
-python udp_relay.py
+cd openarm_teleoperation
+python -m openarm_teleop.udp_relay --remote-host <ireland-tailscale-ip>
 ```
 
 ### Ireland PC Commands
 ```bash
 # Setup CAN
-sudo ip link set can0 up type can bitrate 1000000
-sudo ip link set can1 up type can bitrate 1000000
+sudo bash openarm_teleop/reinit_can.sh
 
-# Start dataflow
-cd dora-openarm-data-collection
-dora run dataflow-vr-real-v1.yaml --uv
+# Start teleop
+cd openarm_teleoperation
+source .venv/bin/activate
+python -m openarm_teleop.teleop_udp --left-can can0 --right-can can1 --max-joint-velocity 1.0
 ```
 
 ### Quest VR App Settings
