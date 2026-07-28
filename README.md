@@ -82,6 +82,25 @@ ip link show can1
 
 ### Step 4: Configure IP Addresses
 
+**Create `.env` file** in the `openarm_teleop` folder:
+
+```bash
+cd openarm_teleoperation/openarm_teleop
+cp .env.example .env
+```
+
+**Edit `.env`** and set your Ireland Tailscale IP:
+
+```bash
+# Kenya PC - UDP Relay Configuration
+UDP_RELAY_REMOTE_HOST=100.82.113.60  # Ireland's Tailscale IP
+UDP_RELAY_LOCAL_PORT=5006
+
+# Network IPs (for reference)
+KENYA_LOCAL_IP=192.168.1.129         # Your local WiFi IP
+IRELAND_TAILSCALE_IP=100.82.113.60   # Ireland's Tailscale IP
+```
+
 **Example IPs:**
 | Location | Tailscale IP | Local WiFi IP | Role |
 |----------|--------------|---------------|------|
@@ -116,9 +135,11 @@ python -m openarm_teleop.teleop_udp \
 
 ```bash
 cd openarm_teleoperation
-python -m openarm_teleop.udp_relay --remote-host <ireland-tailscale-ip>
 
-# Example:
+# Option A: Use .env file (recommended)
+python -m openarm_teleop.udp_relay
+
+# Option B: Override with command line
 python -m openarm_teleop.udp_relay --remote-host 100.82.113.60
 ```
 
@@ -258,9 +279,14 @@ sudo ip link set can1 up type can bitrate 1000000
 # Find local IP (for Quest VR app)
 ipconfig  # Windows
 
+# Setup .env (first time only)
+cd openarm_teleoperation/openarm_teleop
+cp .env.example .env
+# Edit .env and set UDP_RELAY_REMOTE_HOST to Ireland's Tailscale IP
+
 # Start UDP relay
 cd openarm_teleoperation
-python -m openarm_teleop.udp_relay --remote-host <ireland-tailscale-ip>
+python -m openarm_teleop.udp_relay
 ```
 
 ### Ireland PC Commands

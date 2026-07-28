@@ -41,11 +41,31 @@ import argparse
 import select
 import os
 import time
+from pathlib import Path
+
+# Load .env file if it exists
+def load_dotenv():
+    """Load environment variables from .env file."""
+    env_paths = [
+        Path(__file__).parent / ".env",  # openarm_teleop/.env
+        Path.cwd() / ".env",              # current directory
+    ]
+    for env_path in env_paths:
+        if env_path.exists():
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, value = line.split("=", 1)
+                        os.environ.setdefault(key.strip(), value.strip())
+            break
+
+load_dotenv()
 
 # Configuration from environment variables (with defaults)
 LOCAL_HOST = os.environ.get("UDP_RELAY_LOCAL_HOST", "0.0.0.0")
 LOCAL_PORT = int(os.environ.get("UDP_RELAY_LOCAL_PORT", "5006"))
-REMOTE_HOST = os.environ.get("UDP_RELAY_REMOTE_HOST", "100.123.116.112")
+REMOTE_HOST = os.environ.get("UDP_RELAY_REMOTE_HOST", "100.82.113.60")
 REMOTE_PORT = int(os.environ.get("UDP_RELAY_REMOTE_PORT", "5006"))
 
 
