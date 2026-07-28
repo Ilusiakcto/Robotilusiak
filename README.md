@@ -178,6 +178,72 @@ python -m openarm_teleop.udp_relay --remote-host 100.82.113.60
 
 ---
 
+## Camera Streaming (Optional)
+
+Stream video from Ireland robot camera to Kenya for visual feedback.
+
+### Step 1: Install Camera Dependencies (Ireland PC)
+
+```bash
+# Install system tools
+sudo apt install v4l-utils
+
+# Install Python package
+pip install opencv-python
+```
+
+### Step 2: Detect Available Cameras (Ireland PC)
+
+```bash
+# List all cameras
+v4l2-ctl --list-devices
+
+# Or use Python
+python -m openarm_teleop.camera_server --list
+```
+
+**Example output:**
+```
+Microsoft® LifeCam HD-3000 (usb-0000:04:00.3-2):
+    /dev/video2
+
+HP TrueVision HD Camera (usb-0000:04:00.4-2.1):
+    /dev/video0
+```
+
+### Step 3: Start Camera Server (Ireland PC)
+
+```bash
+# Start with detected camera index
+python -m openarm_teleop.camera_server --camera 0 --port 8080
+
+# With custom resolution
+python -m openarm_teleop.camera_server --camera 0 --port 8080 --width 640 --height 480
+```
+
+**CLI Options:**
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--list` | — | List available cameras |
+| `--camera` | 0 | Camera index (from v4l2-ctl) |
+| `--port` | 8080 | HTTP server port |
+| `--width` | 640 | Frame width |
+| `--height` | 480 | Frame height |
+
+### Step 4: View Camera (Kenya PC)
+
+Open browser and go to:
+```
+http://<ireland-tailscale-ip>:8080
+```
+
+**Example:** `http://100.82.113.60:8080`
+
+- Press **F** for fullscreen
+- Video streams as MJPEG at ~30 FPS
+
+---
+
 ## Option B: MuJoCo Simulation (Local)
 
 Use this to test VR control locally without the real robot.
