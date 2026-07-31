@@ -262,7 +262,7 @@ class UdpVRInput:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# One Euro Filter (smoothing) — exact copy from Adamo teleop.py
+# One Euro Filter (smoothing) 
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _smoothing_factor(t_e, cutoff):
@@ -306,7 +306,7 @@ class OneEuroFilter:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# IK Helper Functions — exact copy from Adamo teleop.py
+# IK Helper Functions 
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _quat_to_yaw(q):
@@ -384,9 +384,9 @@ def _joint_limit_weights(q, joint_limits, k=JOINT_LIMIT_K):
     return 1.0 + k * normalized**4
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# IK Controller — exact copy from Adamo teleop.py
-# ═══════════════════════════════════════════════════════════════════════════════
+#
+# IK Controller 
+# 
 
 class ArmIKController:
     """Damped least-squares IK controller with orientation tracking.
@@ -544,9 +544,9 @@ class ArmIKController:
         self.calibrate(joint_pos, vr_position, vr_orientation, calib_yaw)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# 
 # Keyboard Input (optional reset via 'R' key)
-# ═══════════════════════════════════════════════════════════════════════════════
+# 
 
 class KeyboardInput:
     """Simple keyboard input for reset functionality."""
@@ -592,28 +592,6 @@ class KeyboardInput:
 
     def close(self) -> None:
         self._running = False
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Helper Functions
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _quat_to_yaw(quat: np.ndarray) -> float:
-    """Extract yaw from quaternion [qw, qx, qy, qz]."""
-    r = Rotation.from_quat([quat[1], quat[2], quat[3], quat[0]])
-    euler = r.as_euler('zyx')
-    return euler[0]
-
-
-def _to_calibrated_space(pos: np.ndarray, calib_yaw: float) -> np.ndarray:
-    """Rotate position into calibrated coordinate frame."""
-    c, s = np.cos(-calib_yaw), np.sin(-calib_yaw)
-    R = np.array([
-        [c, -s, 0],
-        [s, c, 0],
-        [0, 0, 1],
-    ])
-    return R @ pos
 
 
 def _latest_joint_positions_for_reset(
