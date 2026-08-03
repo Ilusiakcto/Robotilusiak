@@ -956,20 +956,30 @@ def main() -> None:
         RETURN_STEPS = 100
         step_dt = RETURN_DURATION / RETURN_STEPS
         
+        # Use current joints or fallback to home if unknown
+        right_start = right_joints if right_joints is not None else HOME_JOINTS_RIGHT
+        left_start = left_joints if left_joints is not None else HOME_JOINTS_LEFT
+        
         for step in range(RETURN_STEPS):
             alpha = (step + 1) / RETURN_STEPS  # 0 → 1
             
-            if right_arm and right_joints is not None:
-                target = (1 - alpha) * right_joints + alpha * HOME_JOINTS_RIGHT
-                right_arm.set_joint_positions(
-                    target, kp=args.motor_kp, kd=args.motor_kd * 2,  # extra damping
-                    process_responses=True)
+            if right_arm:
+                target = (1 - alpha) * right_start + alpha * HOME_JOINTS_RIGHT
+                try:
+                    right_arm.set_joint_positions(
+                        target, kp=args.motor_kp, kd=args.motor_kd * 2,
+                        process_responses=True)
+                except Exception as e:
+                    print(f"  [right] Return error: {e}", flush=True)
             
-            if left_arm and left_joints is not None:
-                target = (1 - alpha) * left_joints + alpha * HOME_JOINTS_LEFT
-                left_arm.set_joint_positions(
-                    target, kp=args.motor_kp, kd=args.motor_kd * 2,
-                    process_responses=True)
+            if left_arm:
+                target = (1 - alpha) * left_start + alpha * HOME_JOINTS_LEFT
+                try:
+                    left_arm.set_joint_positions(
+                        target, kp=args.motor_kp, kd=args.motor_kd * 2,
+                        process_responses=True)
+                except Exception as e:
+                    print(f"  [left] Return error: {e}", flush=True)
             
             time.sleep(step_dt)
         
