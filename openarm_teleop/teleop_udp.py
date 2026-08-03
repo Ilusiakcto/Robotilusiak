@@ -949,7 +949,32 @@ def main() -> None:
                 time.sleep(sleep_time)
 
     except KeyboardInterrupt:
-        print("\nShutting down...", flush=True)
+        print("\nShutting down — returning to home position...", flush=True)
+        
+        # Gradually return to home position
+        RETURN_DURATION = 2.0  # seconds to return home
+        RETURN_STEPS = 100
+        step_dt = RETURN_DURATION / RETURN_STEPS
+        
+        for step in range(RETURN_STEPS):
+            alpha = (step + 1) / RETURN_STEPS  # 0 → 1
+            
+            if right_arm and right_joints is not None:
+                target = (1 - alpha) * right_joints + alpha * HOME_JOINTS_RIGHT
+                right_arm.set_joint_positions(
+                    target, kp=args.motor_kp, kd=args.motor_kd * 2,  # extra damping
+                    process_responses=True)
+            
+            if left_arm and left_joints is not None:
+                target = (1 - alpha) * left_joints + alpha * HOME_JOINTS_LEFT
+                left_arm.set_joint_positions(
+                    target, kp=args.motor_kp, kd=args.motor_kd * 2,
+                    process_responses=True)
+            
+            time.sleep(step_dt)
+        
+        print("Returned to home position", flush=True)
+        
     finally:
         keyboard.close()
         if right_arm:
