@@ -983,6 +983,25 @@ def main() -> None:
             
             time.sleep(step_dt)
         
+        # Hold at home position for 1 second to let motors settle
+        print("Holding at home position...", flush=True)
+        for _ in range(50):  # 1 second at 50Hz
+            if right_arm:
+                try:
+                    right_arm.set_joint_positions(
+                        HOME_JOINTS_RIGHT, kp=args.motor_kp, kd=args.motor_kd * 2,
+                        process_responses=True)
+                except Exception:
+                    pass
+            if left_arm:
+                try:
+                    left_arm.set_joint_positions(
+                        HOME_JOINTS_LEFT, kp=args.motor_kp, kd=args.motor_kd * 2,
+                        process_responses=True)
+                except Exception:
+                    pass
+            time.sleep(0.02)
+        
         print("Returned to home position", flush=True)
         
     finally:
