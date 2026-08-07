@@ -57,9 +57,6 @@ DEFAULT_UDP_PORT = 5006
 GRIPPER_OPEN = -1.0
 GRIPPER_CLOSED = 0.0
 
-# Clutch mode: trigger threshold to engage arm movement
-CLUTCH_TRIGGER_THRESHOLD = 0.3
-
 # ── Exact Adamo constants ──────────────────────────────────────────────
 
 # Bent-elbow home configs (j4 = elbow bend forward, j2 = 0 keeps arm at side)
@@ -499,14 +496,29 @@ class ArmIKController:
             J_pinv = (J.T @ A_inv) * w_inv[:, np.newaxis]
             dq_task = J_pinv @ error
 
-            # Error-gated null-space
+            # Error-gated null-space: suppress near-home bias during large errors
             err_norm = np.linalg.norm(pos_error)
-            ns_scale = np.exp(-50.0 * err_norm**2)
+            ns_scale = np.exp(-50.0 * err_norm**2)  # ~0 above 5mm, ~1 below 1mm
             null_proj = np.eye(7) - J_pinv @ J
             dq_null_home = ns_scale * NULL_SPACE_GAIN * (self.home_joints - self._current_joints)
 
-            # Manipulability gradient (disabled by default)
+            # Manipulability gradient (disabled by default: MANIP_GAIN = 0)
+            manip_base = 0.0
             dq_null_manip = np.zeros(7)
+            if MANIP_GAIN > 0:
+                manip_base = np.sqrt(max(np.linalg.det(J @ J.T), 0.0))
+                eps = 1e-4
+                for i in range(7):
+                    q_pert = self._current_joints.copy()
+                    q_pert[i] += eps
+                    J_pert_full = self.kin.get_jacobian(q_pert)
+                    if has_orient:
+                        J_pert = _ee_jacobian(J_pert_full, current_pos)
+                        J_pert[3:, :] *= ORIENT_WEIGHT
+                    else:
+                        J_pert = _ee_jacobian(J_pert_full, current_pos)[:3, :]
+                    manip_pert = np.sqrt(max(np.linalg.det(J_pert @ J_pert.T), 0.0))
+                    dq_null_manip[i] = (manip_pert - manip_base) / eps
 
             dq = dq_task + null_proj @ (dq_null_home + MANIP_GAIN * dq_null_manip)
 
@@ -654,8 +666,6 @@ def main() -> None:
                         help="Max joint velocity in rad/s")
     parser.add_argument("--mirror", action="store_true",
                         help="Mirror left/right controls (for viewing robot from front)")
-    parser.add_argument("--clutch", action="store_true",
-                        help="Clutch mode: robot only moves while trigger is held")
     args = parser.parse_args()
 
     if args.right_can is None and args.left_can is None:
@@ -786,10 +796,6 @@ def main() -> None:
         return True
 
     print("Waiting for VR data...", flush=True)
-    
-    # Clutch mode state tracking
-    right_clutch_engaged = False
-    left_clutch_engaged = False
 
     try:
         while True:
@@ -819,22 +825,27 @@ def main() -> None:
                 got_head = head_quat is not None
                 need_right = use_right
                 need_left = use_left
+                
+                # Require valid joint feedback - do not fall back to HOME_JOINTS
+                if use_right and right_joints is None:
+                    print("ERROR: Cannot calibrate right arm without joint feedback", flush=True)
+                    time.sleep(0.5)
+                    continue
+                if use_left and left_joints is None:
+                    print("ERROR: Cannot calibrate left arm without joint feedback", flush=True)
+                    time.sleep(0.5)
+                    continue
+                    
                 if (got_right or not need_right) and (got_left or not need_left) and got_head:
                     calib_yaw = _quat_to_yaw(head_quat)
                     if right_ik and right_vr.position is not None:
                         right_cs = _to_calibrated_space(right_vr.position, calib_yaw)
                         right_euro = OneEuroFilter(right_cs)
-                        # Use HOME_JOINTS if current joints unavailable
-                        calib_joints = right_joints if right_joints is not None else HOME_JOINTS_RIGHT.copy()
-                        right_ik.calibrate(calib_joints, right_cs, right_vr.orientation, calib_yaw)
-                        right_joints = calib_joints
+                        right_ik.calibrate(right_joints, right_cs, right_vr.orientation, calib_yaw)
                     if left_ik and left_vr.position is not None:
                         left_cs = _to_calibrated_space(left_vr.position, calib_yaw)
                         left_euro = OneEuroFilter(left_cs)
-                        # Use HOME_JOINTS if current joints unavailable
-                        calib_joints = left_joints if left_joints is not None else HOME_JOINTS_LEFT.copy()
-                        left_ik.calibrate(calib_joints, left_cs, left_vr.orientation, calib_yaw)
-                        left_joints = calib_joints
+                        left_ik.calibrate(left_joints, left_cs, left_vr.orientation, calib_yaw)
                     calibrated = True
                     print(f"Calibrated — VR teleop active (calib yaw={np.degrees(calib_yaw):.1f}°)", flush=True)
                 else:
@@ -843,91 +854,29 @@ def main() -> None:
 
             # Right arm
             if right_ik and right_vr.updated and right_vr.position is not None:
-                right_trigger_pressed = right_vr.trigger >= CLUTCH_TRIGGER_THRESHOLD
-                
-                # Clutch mode: only move when trigger held
-                if args.clutch:
-                    if right_trigger_pressed and not right_clutch_engaged:
-                        # Just pressed trigger - re-calibrate to current position
-                        right_cs = _to_calibrated_space(right_vr.position, calib_yaw)
-                        right_euro = OneEuroFilter(right_cs)
-                        if right_joints is not None:
-                            right_ik.calibrate(right_joints, right_cs, right_vr.orientation, calib_yaw)
-                        right_clutch_engaged = True
-                        print(f"  [right] Clutch engaged", flush=True)
-                    elif not right_trigger_pressed and right_clutch_engaged:
-                        right_clutch_engaged = False
-                        print(f"  [right] Clutch released", flush=True)
-                    
-                    if not right_clutch_engaged:
-                        right_arm._process_responses()
-                    else:
-                        right_cs = _to_calibrated_space(right_vr.position, calib_yaw)
-                        if right_euro is not None:
-                            right_cs = right_euro(right_cs, t)
-                        cmd = right_ik.compute(right_cs, dt, right_vr.orientation)
-                        if cmd is not None:
-                            right_arm.set_joint_positions(
-                                cmd, kp=args.motor_kp, kd=args.motor_kd,
-                                process_responses=False)
-                            right_joints = cmd.copy()
-                        right_arm._process_responses()
-                else:
-                    # Non-clutch mode: always move
-                    right_cs = _to_calibrated_space(right_vr.position, calib_yaw)
-                    if right_euro is not None:
-                        right_cs = right_euro(right_cs, t)
-                    cmd = right_ik.compute(right_cs, dt, right_vr.orientation)
-                    if cmd is not None:
-                        right_arm.set_joint_positions(
-                            cmd, kp=args.motor_kp, kd=args.motor_kd,
-                            process_responses=False)
-                        right_joints = cmd.copy()
-                    right_arm._process_responses()
+                right_cs = _to_calibrated_space(right_vr.position, calib_yaw)
+                if right_euro is not None:
+                    right_cs = right_euro(right_cs, t)
+                cmd = right_ik.compute(right_cs, dt, right_vr.orientation)
+                if cmd is not None:
+                    right_arm.set_joint_positions(
+                        cmd, kp=args.motor_kp, kd=args.motor_kd,
+                        process_responses=False)
+                    right_joints = cmd.copy()
+                right_arm._process_responses()
 
             # Left arm
             if left_ik and left_vr.updated and left_vr.position is not None:
-                left_trigger_pressed = left_vr.trigger >= CLUTCH_TRIGGER_THRESHOLD
-                
-                # Clutch mode: only move when trigger held
-                if args.clutch:
-                    if left_trigger_pressed and not left_clutch_engaged:
-                        # Just pressed trigger - re-calibrate to current position
-                        left_cs = _to_calibrated_space(left_vr.position, calib_yaw)
-                        left_euro = OneEuroFilter(left_cs)
-                        if left_joints is not None:
-                            left_ik.calibrate(left_joints, left_cs, left_vr.orientation, calib_yaw)
-                        left_clutch_engaged = True
-                        print(f"  [left] Clutch engaged", flush=True)
-                    elif not left_trigger_pressed and left_clutch_engaged:
-                        left_clutch_engaged = False
-                        print(f"  [left] Clutch released", flush=True)
-                    
-                    if not left_clutch_engaged:
-                        left_arm._process_responses()
-                    else:
-                        left_cs = _to_calibrated_space(left_vr.position, calib_yaw)
-                        if left_euro is not None:
-                            left_cs = left_euro(left_cs, t)
-                        cmd = left_ik.compute(left_cs, dt, left_vr.orientation)
-                        if cmd is not None:
-                            left_arm.set_joint_positions(
-                                cmd, kp=args.motor_kp, kd=args.motor_kd,
-                                process_responses=False)
-                            left_joints = cmd.copy()
-                        left_arm._process_responses()
-                else:
-                    # Non-clutch mode: always move
-                    left_cs = _to_calibrated_space(left_vr.position, calib_yaw)
-                    if left_euro is not None:
-                        left_cs = left_euro(left_cs, t)
-                    cmd = left_ik.compute(left_cs, dt, left_vr.orientation)
-                    if cmd is not None:
-                        left_arm.set_joint_positions(
-                            cmd, kp=args.motor_kp, kd=args.motor_kd,
-                            process_responses=False)
-                        left_joints = cmd.copy()
-                    left_arm._process_responses()
+                left_cs = _to_calibrated_space(left_vr.position, calib_yaw)
+                if left_euro is not None:
+                    left_cs = left_euro(left_cs, t)
+                cmd = left_ik.compute(left_cs, dt, left_vr.orientation)
+                if cmd is not None:
+                    left_arm.set_joint_positions(
+                        cmd, kp=args.motor_kp, kd=args.motor_kd,
+                        process_responses=False)
+                    left_joints = cmd.copy()
+                left_arm._process_responses()
 
             # Grippers (trigger: 0→open, 1→closed)
             if right_arm:
