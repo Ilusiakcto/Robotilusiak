@@ -86,14 +86,14 @@ JOINT_LIMITS_LEFT = np.array([
     [-1.570796, 1.570796],
 ])
 
-# ── ORIGINAL ADAMO TUNING (smooth, safe) ──
-DLS_LAMBDA_MAX = 0.05      # Damping near singularities
-DLS_SIGMA_THRESH = 0.05    # Singularity threshold
-NULL_SPACE_GAIN = 0.5      # Pull toward home position
+# ── MID TUNING: halfway between normal and pong ──
+DLS_LAMBDA_MAX = 0.035     # Mid damping (normal 0.05, pong 0.02)
+DLS_SIGMA_THRESH = 0.04    # Mid singularity threshold (normal 0.05, pong 0.03)
+NULL_SPACE_GAIN = 0.35     # Mid pull toward home (normal 0.5, pong 0.2)
 IK_SUB_ITERS = 3           # Sub-iterations per control cycle
-ORIENT_WEIGHT = 0.3        # Orientation tracking priority
-JOINT_LIMIT_K = 10.0       # Joint-limit avoidance gain
-MANIP_GAIN = 0.0           # Manipulability gradient (disabled)
+ORIENT_WEIGHT = 0.225      # Mid orientation priority (normal 0.3, pong 0.15)
+JOINT_LIMIT_K = 10.0       # Joint-limit avoidance gain (unchanged)
+MANIP_GAIN = 0.0           # Disabled (unchanged)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
