@@ -737,6 +737,50 @@ def main() -> None:
     start_time = time.monotonic()
     last_debug = 0.0
 
+    def return_to_home_position() -> None:
+        """Smoothly return arms to home position without stopping teleop."""
+        nonlocal right_joints, left_joints
+        
+        print("Returning to home position...", flush=True)
+        
+        RETURN_DURATION = 2.0  # seconds
+        RETURN_STEPS = 100
+        step_dt = RETURN_DURATION / RETURN_STEPS
+        
+        right_start = right_joints if right_joints is not None else HOME_JOINTS_RIGHT
+        left_start = left_joints if left_joints is not None else HOME_JOINTS_LEFT
+        
+        for step in range(RETURN_STEPS):
+            alpha = (step + 1) / RETURN_STEPS
+            
+            if right_arm:
+                target = (1 - alpha) * right_start + alpha * HOME_JOINTS_RIGHT
+                try:
+                    right_arm.set_joint_positions(
+                        target, kp=args.motor_kp, kd=args.motor_kd * 2,
+                        process_responses=True)
+                except Exception as e:
+                    print(f"  [right] Home error: {e}", flush=True)
+            
+            if left_arm:
+                target = (1 - alpha) * left_start + alpha * HOME_JOINTS_LEFT
+                try:
+                    left_arm.set_joint_positions(
+                        target, kp=args.motor_kp, kd=args.motor_kd * 2,
+                        process_responses=True)
+                except Exception as e:
+                    print(f"  [left] Home error: {e}", flush=True)
+            
+            time.sleep(step_dt)
+        
+        # Update joint positions to home
+        if use_right:
+            right_joints = HOME_JOINTS_RIGHT.copy()
+        if use_left:
+            left_joints = HOME_JOINTS_LEFT.copy()
+        
+        print("Arms at home position", flush=True)
+
     def rebuild_ik_solver(
         reason: str,
         left_vr: VRControllerState,
@@ -807,9 +851,14 @@ def main() -> None:
             keyboard_reset = keyboard.consume_reset()
             vr_reset = vr.consume_reset()
 
-            if keyboard_reset or vr_reset:
-                reason = "keyboard R" if keyboard_reset else "VR X"
-                rebuild_ik_solver(reason, left_vr, right_vr, head_quat)
+            if keyboard_reset:
+                # R key: just recalibrate from current position
+                rebuild_ik_solver("keyboard R", left_vr, right_vr, head_quat)
+            
+            if vr_reset:
+                # X button: return to home position first, then recalibrate
+                return_to_home_position()
+                rebuild_ik_solver("VR X (after home)", left_vr, right_vr, head_quat)
 
             # Debug: print VR state periodically
             if t - last_debug > 2.0:
