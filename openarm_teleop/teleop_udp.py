@@ -711,6 +711,45 @@ def main() -> None:
     right_joints = _latest_joint_positions_for_reset(right_arm, None, "right") if use_right else None
     left_joints = _latest_joint_positions_for_reset(left_arm, None, "left") if use_left else None
 
+    # ── STARTUP HOMING: Move to HOME position before VR calibration ──
+    # This ensures IK calibration starts from a known pose (like original Adamo)
+    print("Moving to home position before calibration...", flush=True)
+    
+    STARTUP_HOME_DURATION = 3.0  # seconds - slower for safety
+    STARTUP_HOME_STEPS = 150
+    step_dt = STARTUP_HOME_DURATION / STARTUP_HOME_STEPS
+    
+    right_start = right_joints if right_joints is not None else HOME_JOINTS_RIGHT
+    left_start = left_joints if left_joints is not None else HOME_JOINTS_LEFT
+    
+    for step in range(STARTUP_HOME_STEPS):
+        alpha = (step + 1) / STARTUP_HOME_STEPS
+        
+        if right_arm:
+            target = (1 - alpha) * right_start + alpha * HOME_JOINTS_RIGHT
+            try:
+                right_arm.set_joint_positions(
+                    target, kp=args.motor_kp, kd=args.motor_kd * 2,
+                    process_responses=True)
+            except Exception as e:
+                print(f"  [right] Startup home error: {e}", flush=True)
+        
+        if left_arm:
+            target = (1 - alpha) * left_start + alpha * HOME_JOINTS_LEFT
+            try:
+                left_arm.set_joint_positions(
+                    target, kp=args.motor_kp, kd=args.motor_kd * 2,
+                    process_responses=True)
+            except Exception as e:
+                print(f"  [left] Startup home error: {e}", flush=True)
+        
+        time.sleep(step_dt)
+    
+    # Update joints to HOME after homing completes
+    right_joints = HOME_JOINTS_RIGHT.copy() if use_right else None
+    left_joints = HOME_JOINTS_LEFT.copy() if use_left else None
+    print("Arms at home position — ready for VR calibration", flush=True)
+
     # IK controllers (created on calibration)
     right_ik: Optional[ArmIKController] = None
     left_ik: Optional[ArmIKController] = None
