@@ -59,9 +59,9 @@ GRIPPER_CLOSED = 0.0
 
 # ── Exact Adamo constants ──────────────────────────────────────────────
 
-# Bent-elbow home configs (j4 = elbow bend forward, j2 = 0 keeps arm at side)
-HOME_JOINTS_RIGHT = np.array([0, 0, 0, 1.2, 0, 0, 0])
-HOME_JOINTS_LEFT = np.array([0, 0, 0, 1.2, 0, 0, 0])
+# Arms straight down (180°) - like human standing with arms at sides
+HOME_JOINTS_RIGHT = np.array([0, 0, 0, 0, 0, 0, 0])
+HOME_JOINTS_LEFT = np.array([0, 0, 0, 0, 0, 0, 0])
 
 # Joint limits from URDF [lower, upper] for each of 7 joints
 JOINT_LIMITS_RIGHT = np.array([
