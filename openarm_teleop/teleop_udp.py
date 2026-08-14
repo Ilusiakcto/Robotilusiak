@@ -967,21 +967,17 @@ def main() -> None:
                 left_arm._process_responses()
 
             # Grippers (trigger: 0→open, 1→closed)
-            # Rate-limited: only send every 5th loop (~12-20Hz instead of 60-100Hz)
-            if int(t * args.rate) % 5 == 0:
-                if right_arm:
-                    t_val = np.clip(right_vr.trigger, 0.0, 1.0)
-                    grip_pos = GRIPPER_OPEN + t_val * (GRIPPER_CLOSED - GRIPPER_OPEN)
-                    data = pack_mit(GRIPPER_MOTOR_TYPE, kp=args.motor_kp, kd=args.motor_kd, q=grip_pos)
-                    right_arm.bus.send(GRIPPER_SEND_ID, data)
-                    right_arm._process_responses()  # Clear gripper responses
+            if right_arm:
+                t_val = np.clip(right_vr.trigger, 0.0, 1.0)
+                grip_pos = GRIPPER_OPEN + t_val * (GRIPPER_CLOSED - GRIPPER_OPEN)
+                data = pack_mit(GRIPPER_MOTOR_TYPE, kp=args.motor_kp, kd=args.motor_kd, q=grip_pos)
+                right_arm.bus.send(GRIPPER_SEND_ID, data)
 
-                if left_arm:
-                    t_val = np.clip(left_vr.trigger, 0.0, 1.0)
-                    grip_pos = GRIPPER_OPEN + t_val * (GRIPPER_CLOSED - GRIPPER_OPEN)
-                    data = pack_mit(GRIPPER_MOTOR_TYPE, kp=args.motor_kp, kd=args.motor_kd, q=grip_pos)
-                    left_arm.bus.send(GRIPPER_SEND_ID, data)
-                    left_arm._process_responses()  # Clear gripper responses
+            if left_arm:
+                t_val = np.clip(left_vr.trigger, 0.0, 1.0)
+                grip_pos = GRIPPER_OPEN + t_val * (GRIPPER_CLOSED - GRIPPER_OPEN)
+                data = pack_mit(GRIPPER_MOTOR_TYPE, kp=args.motor_kp, kd=args.motor_kd, q=grip_pos)
+                left_arm.bus.send(GRIPPER_SEND_ID, data)
 
             # Maintain loop rate
             elapsed = time.monotonic() - loop_start
