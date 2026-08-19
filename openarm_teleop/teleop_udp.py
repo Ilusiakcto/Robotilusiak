@@ -47,6 +47,13 @@ from can_motor import (
     GRIPPER_SEND_ID,
 )
 
+# Optional: LeRobot dataset recording
+try:
+    from lerobot_recorder import LeRobotRecorder
+    LEROBOT_AVAILABLE = True
+except ImportError:
+    LEROBOT_AVAILABLE = False
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Constants
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -666,6 +673,17 @@ def main() -> None:
                         help="Max joint velocity in rad/s")
     parser.add_argument("--mirror", action="store_true",
                         help="Mirror left/right controls (for viewing robot from front)")
+    # LeRobot recording options
+    parser.add_argument("--record", action="store_true",
+                        help="Enable LeRobot dataset recording")
+    parser.add_argument("--repo-id", type=str, default=None,
+                        help="HuggingFace repo ID for dataset (e.g., username/dataset_name)")
+    parser.add_argument("--task", type=str, default="teleoperation task",
+                        help="Task description for recording")
+    parser.add_argument("--hf-token", type=str, default=None,
+                        help="HuggingFace token for upload (or set HF_TOKEN env var)")
+    parser.add_argument("--record-fps", type=int, default=30,
+                        help="Recording FPS (default: 30)")
     args = parser.parse_args()
 
     if args.right_can is None and args.left_can is None:
@@ -775,6 +793,32 @@ def main() -> None:
     calib_yaw: Optional[float] = None
     start_time = time.monotonic()
     last_debug = 0.0
+
+    # ── LeRobot Recording Setup ──
+    recorder = None
+    recording_active = False
+    last_record_time = 0.0
+    record_interval = 1.0 / args.record_fps if args.record else 0.0
+    
+    if args.record:
+        if not LEROBOT_AVAILABLE:
+            print("ERROR: LeRobot recording requested but lerobot_recorder not available")
+            print("  Install with: pip install pyarrow huggingface_hub")
+        elif args.repo_id is None:
+            print("ERROR: --repo-id required for recording (e.g., --repo-id username/dataset_name)")
+        else:
+            state_dim = 7 * (int(use_right) + int(use_left))  # 7 or 14 joints
+            recorder = LeRobotRecorder(
+                repo_id=args.repo_id,
+                task=args.task,
+                fps=args.record_fps,
+                state_dim=state_dim,
+                action_dim=state_dim,
+            )
+            print(f"[Recording] Ready - Press B to start/stop episode")
+            print(f"  Repo: {args.repo_id}")
+            print(f"  Task: {args.task}")
+            print(f"  FPS: {args.record_fps}")
 
     def return_to_home_position() -> None:
         """Smoothly return arms to home position without stopping teleop."""
@@ -979,6 +1023,40 @@ def main() -> None:
                 data = pack_mit(GRIPPER_MOTOR_TYPE, kp=args.motor_kp, kd=args.motor_kd, q=grip_pos)
                 left_arm.bus.send(GRIPPER_SEND_ID, data)
 
+            # ── LeRobot Recording ──
+            if recorder is not None and calibrated:
+                # Check for B button (grip > 0.8) to toggle recording
+                grip_pressed = (right_vr.grip > 0.8) or (left_vr.grip > 0.8)
+                
+                if grip_pressed and not getattr(recorder, '_grip_was_pressed', False):
+                    # Toggle recording on grip press
+                    if not recording_active:
+                        recorder.start_episode()
+                        recording_active = True
+                        print(f"[Recording] Episode {recorder.num_episodes} STARTED", flush=True)
+                    else:
+                        recorder.end_episode()
+                        recording_active = False
+                        print(f"[Recording] Episode saved ({recorder.num_episodes} total)", flush=True)
+                
+                recorder._grip_was_pressed = grip_pressed
+                
+                # Record frame at specified FPS
+                if recording_active and (t - last_record_time) >= record_interval:
+                    # Combine joint states
+                    if use_right and use_left:
+                        obs_state = np.concatenate([right_joints, left_joints])
+                        action = obs_state.copy()  # For teleop, action = current state
+                    elif use_right:
+                        obs_state = right_joints.copy()
+                        action = obs_state.copy()
+                    else:
+                        obs_state = left_joints.copy()
+                        action = obs_state.copy()
+                    
+                    recorder.add_frame(obs_state, action, timestamp=t)
+                    last_record_time = t
+
             # Maintain loop rate
             elapsed = time.monotonic() - loop_start
             sleep_time = dt - elapsed
@@ -1040,6 +1118,26 @@ def main() -> None:
             time.sleep(0.02)
         
         print("Returned to home position", flush=True)
+        
+        # Save LeRobot dataset if recording was active
+        if recorder is not None and recorder.num_episodes > 0:
+            if recording_active:
+                recorder.end_episode()
+            print(f"\n[Recording] Saving dataset ({recorder.num_episodes} episodes)...")
+            
+            hf_token = args.hf_token or os.environ.get("HF_TOKEN")
+            if hf_token:
+                try:
+                    url = recorder.save_and_upload(hf_token)
+                    print(f"[Recording] Uploaded to: {url}")
+                except Exception as e:
+                    print(f"[Recording] Upload failed: {e}")
+                    recorder.save()
+                    print(f"[Recording] Saved locally to: {recorder.output_dir}")
+            else:
+                recorder.save()
+                print(f"[Recording] Saved locally to: {recorder.output_dir}")
+                print("[Recording] To upload, set --hf-token or HF_TOKEN env var")
         
     finally:
         keyboard.close()
