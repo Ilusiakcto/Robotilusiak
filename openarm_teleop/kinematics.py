@@ -129,7 +129,7 @@ class OpenArmKinematics:
         """
         # Set current joint positions as initial guess
         for i, joint_name in enumerate(self.joint_names):
-            self.robot.set_joint(joint_name, current_joint_pos[i])
+            self.robot.set_joint(joint_name, float(current_joint_pos[i]))
 
         # Update the target pose for the frame task
         self.tip_frame.T_world_frame = desired_ee_pose
@@ -163,7 +163,7 @@ class OpenArmKinematics:
             joint_pos_rad = np.zeros(len(self.joint_names))
 
         for i, joint_name in enumerate(self.joint_names):
-            self.robot.set_joint(joint_name, joint_pos_rad[i])
+            self.robot.set_joint(joint_name, float(joint_pos_rad[i]))
 
         self.robot.update_kinematics()
 
@@ -179,11 +179,11 @@ class OpenArmKinematics:
         """
         # Update joint positions
         for i, joint_name in enumerate(self.joint_names):
-            self.robot.set_joint(joint_name, joint_pos_rad[i])
+            self.robot.set_joint(joint_name, float(joint_pos_rad[i]))
 
         self.robot.update_kinematics()
 
-        # Get full Jacobian (6 x N_dof) and extract only this arm's columns
+        # Compute the Jacobian (6 x N_dof) and extract only this arm's columns
         J_full = self.robot.frame_jacobian(self.target_frame_name, "world")
         cols = [self.robot.get_joint_v_offset(n) for n in self.joint_names]
         return J_full[:, cols]
