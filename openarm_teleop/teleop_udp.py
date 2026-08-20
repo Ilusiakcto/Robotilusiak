@@ -794,6 +794,11 @@ def main() -> None:
     start_time = time.monotonic()
     last_debug = 0.0
 
+    # ── Latency Tracking ──
+    loop_times = []
+    vr_update_times = {"left": 0.0, "right": 0.0}
+    last_vr_packet_time = 0.0
+
     # ── LeRobot Recording Setup ──
     recorder = None
     recording_active = False
@@ -943,13 +948,36 @@ def main() -> None:
                 return_to_home_position()
                 rebuild_ik_solver("VR X (after home)", left_vr, right_vr, head_quat)
 
-            # Debug: print VR state periodically
+            # Track VR update times
+            if left_vr.updated:
+                vr_update_times["left"] = t
+                last_vr_packet_time = t
+            if right_vr.updated:
+                vr_update_times["right"] = t
+                last_vr_packet_time = t
+
+            # Debug: print VR state and latency periodically
             if t - last_debug > 2.0:
                 last_debug = t
+                
+                # Calculate latencies
+                loop_latency_ms = (elapsed * 1000) if 'elapsed' in dir() else 0
+                target_ms = dt * 1000
+                vr_age_l = (t - vr_update_times["left"]) * 1000 if vr_update_times["left"] > 0 else -1
+                vr_age_r = (t - vr_update_times["right"]) * 1000 if vr_update_times["right"] > 0 else -1
+                
+                # Track loop times for average
+                loop_times.append(loop_latency_ms)
+                if len(loop_times) > 50:
+                    loop_times.pop(0)
+                avg_loop = sum(loop_times) / len(loop_times) if loop_times else 0
+                
                 r_pos = right_vr.position if right_vr.position is not None else "None"
                 l_pos = left_vr.position if left_vr.position is not None else "None"
-                print(f"  [VR] t={t:.1f}s  L={l_pos}  R={r_pos}  "
-                      f"L.upd={left_vr.updated} R.upd={right_vr.updated}", flush=True)
+                
+                print(f"  [VR] t={t:.1f}s  L={l_pos}  R={r_pos}", flush=True)
+                print(f"  [Latency] loop={loop_latency_ms:.1f}ms (avg={avg_loop:.1f}ms, target={target_ms:.1f}ms)  "
+                      f"VR_age: L={vr_age_l:.0f}ms R={vr_age_r:.0f}ms", flush=True)
 
             if not calibrated:
                 got_right = use_right and right_vr.position is not None
