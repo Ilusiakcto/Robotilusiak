@@ -815,7 +815,7 @@ def main() -> None:
                 state_dim=state_dim,
                 action_dim=state_dim,
             )
-            print(f"[Recording] Ready - Press B to start/stop episode")
+            print(f"[Recording] Auto-record enabled (Ctrl+C to save & upload)")
             print(f"  Repo: {args.repo_id}")
             print(f"  Task: {args.task}")
             print(f"  FPS: {args.record_fps}")
@@ -1023,26 +1023,16 @@ def main() -> None:
                 data = pack_mit(GRIPPER_MOTOR_TYPE, kp=args.motor_kp, kd=args.motor_kd, q=grip_pos)
                 left_arm.bus.send(GRIPPER_SEND_ID, data)
 
-            # ── LeRobot Recording ──
+            # ── LeRobot Recording (automatic) ──
             if recorder is not None and calibrated:
-                # Check for B button (grip > 0.8) to toggle recording
-                grip_pressed = (right_vr.grip > 0.8) or (left_vr.grip > 0.8)
-                
-                if grip_pressed and not getattr(recorder, '_grip_was_pressed', False):
-                    # Toggle recording on grip press
-                    if not recording_active:
-                        recorder.start_episode()
-                        recording_active = True
-                        print(f"[Recording] Episode {recorder.num_episodes} STARTED", flush=True)
-                    else:
-                        recorder.end_episode()
-                        recording_active = False
-                        print(f"[Recording] Episode saved ({recorder.num_episodes} total)", flush=True)
-                
-                recorder._grip_was_pressed = grip_pressed
+                # Auto-start recording on first calibrated frame
+                if not recording_active:
+                    recorder.start_episode()
+                    recording_active = True
+                    print(f"[Recording] Episode STARTED automatically", flush=True)
                 
                 # Record frame at specified FPS
-                if recording_active and (t - last_record_time) >= record_interval:
+                if (t - last_record_time) >= record_interval:
                     # Combine joint states
                     if use_right and use_left:
                         obs_state = np.concatenate([right_joints, left_joints])
